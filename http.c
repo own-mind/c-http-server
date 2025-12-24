@@ -5,21 +5,26 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-
-typedef struct {
-    char **lines;
-    int size;
-} LineArray;
+#include "http.h"
 
 LineArray getLines(int clientSockfd) {
-    FILE *file = fdopen(clientSockfd, "r");
     char line[256];
     char **result = malloc(0);
     int n = 0;
     
     size_t lineSize;
     char *resultLine;
-    while (fgets(line, sizeof(line), file) != NULL) {
+    char readByte;
+    int i;
+    ssize_t recvSize = 1;
+    while (recvSize > 0) {
+        int i = 0;
+        while (i < sizeof(line) && (recvSize = recv(clientSockfd, &readByte, 1, 0)) > 0) {
+            line[i++] = readByte;
+            if (readByte == '\n') break;
+        }
+        if (i == 0) break;
+        line[i] = '\0';
         result = realloc(result, ++n * sizeof(char*));
 
         lineSize = strlen(line);
@@ -33,7 +38,110 @@ LineArray getLines(int clientSockfd) {
     return arr;
 }
 
-int main() {
+typedef struct {
+    char *chars;
+    int length;  // Length excluding \0
+} String;
+
+int collectUntilCharBuffered(CharStream *stream, char *buffer, int bufferLength, char until) {
+    int n = 0;
+    while(!eof(stream) && peek(stream) != until && bufferLength > n + 1) {
+        buffer[n++] = next(stream);
+    }
+    buffer[n] = '\0';
+    
+    return n;
+}
+
+String collectUntilChar(CharStream *stream, char until) {
+    char *result = malloc(0);
+    int n = 0;
+    while(!eof(stream) && peek(stream) != until) {
+        result = realloc(result, ++n * sizeof(char));
+        result[n - 1] = next(stream);
+    }
+    
+    result = realloc(result, (n + 1) * sizeof(char));
+    result[n] = '\0';
+    String s = { result, n };
+    return s;
+}
+
+int stringHash(char *t) {
+    int result = 0;
+    while(*t != '\0') {
+        result = result ^ *t;
+        t++;
+    }
+
+    return result;
+}
+
+int parseRequestLine(HttpRequest *result, CharStream *stream) {
+    char buffer[16];
+    collectUntilCharBuffered(stream, buffer, 16, ' ');
+
+    RequestMethod method;
+    switch (stringHash(buffer)) { // this is stupid
+        case 86: method = GET; break;
+        case 24: method = POST; break;
+        case 25: method = DELETE; break;
+        case 81: method = PUT; break;
+        case 94: method = CONNECT; break;
+        case 78: method = PATCH; break;
+        case 65: method = TRACE; break;
+        case 8: method = HEAD; break;
+        case 80: method = OPTIONS; break;
+    }
+    result->method = method;
+
+    next(stream); // Skip ' '
+    
+    String targetString = collectUntilChar(stream, ' ');
+    result->target = targetString.chars;
+
+    next(stream); // Skip ' '
+
+    String httpVersion = collectUntilChar(stream, '\r');
+
+    if(strncmp(httpVersion.chars, "HTTP/", 5)) {
+        errno = EPROTO;
+        return 0;
+    }
+
+    result->httpVersion = strdup(httpVersion.chars + 5);  // Cutting HTTP/ from the start
+    free(httpVersion.chars);
+
+    next(stream); // Skip '\r
+    next(stream); // Skip '\n'
+
+    return 1;
+}
+
+HttpRequest *parseHttpRequest(CharStream *stream) {
+    HttpRequest *result = calloc(1, sizeof(HttpRequest));
+
+    int success = parseRequestLine(result, stream);
+    if (!success) return NULL;
+
+    return result;
+}
+
+void freeHttpRequest(HttpRequest *r) {
+    free(r->target);
+    free(r->httpVersion);
+    free(r->body);
+    free(r);
+}
+
+void freeLineArray(LineArray arr) {
+    for (int i = 0; i < arr.size; i++) {
+        free(arr.lines[i]);
+    }
+    free(arr.lines);
+}
+
+int testSocket() {
     int sockfd;
     struct sockaddr_in servAddr;
 

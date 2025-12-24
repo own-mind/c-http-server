@@ -1,0 +1,39 @@
+#ifndef __HTTP_H
+#define __HTTP_H
+
+#include <errno.h>
+#include "charStream.h"
+
+typedef struct {
+    char **lines;
+    int size;
+} LineArray;
+
+void freeLineArray(LineArray r);
+
+typedef enum {
+  GET, POST, DELETE, PUT, CONNECT, PATCH, TRACE, HEAD, OPTIONS
+} RequestMethod;
+
+typedef struct {
+  char *key;
+  char *value;
+} RequestHeader;
+
+typedef struct  {
+  RequestMethod method;
+  char *target;
+  char *httpVersion;
+
+  RequestHeader *headers;
+  int headersSize;
+
+  char *body;
+  int bodySize;
+} HttpRequest;
+
+void freeHttpRequest(HttpRequest *r);
+
+HttpRequest *parseHttpRequest(CharStream *stream);
+
+#endif
