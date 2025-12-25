@@ -5,8 +5,8 @@ struct CharStream;
 typedef struct CharStream CharStream;
 
 char peek(CharStream *stream);
-char next(CharStream *stream);
-void skip(CharStream *stream);
+char next(CharStream *stream);  //TODO make next like skip, remove skip
+char skip(CharStream *stream);
 int eof(CharStream *stream);
 void freeStream(CharStream *stream);
 

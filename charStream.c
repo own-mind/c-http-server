@@ -29,11 +29,13 @@ char peek(CharStream *stream) {
 /**
  * Skips current char without peeking into the next (unlike next function)
  */
-void skip(CharStream *stream) {
+char skip(CharStream *stream) {
     if (!stream->peeked) {
-        stream->next(stream->state);
+        return stream->next(stream->state);
     }
+
     stream->peeked = false;
+    return stream->current;
 }
 
 char next(CharStream *stream) {

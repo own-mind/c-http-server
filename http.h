@@ -29,7 +29,7 @@ typedef struct  {
   int headersSize;
 
   char *body;
-  int bodySize;
+  long bodySize;
 } HttpRequest;
 
 /**

@@ -117,8 +117,16 @@ int main() {
     assert(r == NULL, "Http request parsing should return null");
     freeStream(stream);
 
+    printf("Test #%d: Duplicate Key Headers\n", ++testCount);
+    stream = createStringStream("GET /coffee HTTP/1.1\r\nTest: 1\r\nTest: 2\r\nTest: 3\r\n\r\n");
+    r = parseHttpRequest(stream);
+    assertNotNull(r);
+    assertHeader(r, "Test", "1,2,3");
+    freeHttpRequest(r);
+    freeStream(stream);
+
     printf("Test #%d: Parsing Full Request\n", ++testCount);
-    stream = createStringStream("GET / HTTP/1.1\r\nHost: localhost:42069\r\nUser-Agent: curl/7.81.0\r\nAccept: */*\r\n\r\n");
+    stream = createStringStream("GET / HTTP/1.1\r\nHost: localhost:42069\r\nUser-Agent: curl/7.81.0\r\nAccept: */*\r\nContent-Length: 14\r\n\r\nBody body body");
     r = parseHttpRequest(stream);
     assertNotNull(r);
     assertInt(GET, r->method);
@@ -127,6 +135,9 @@ int main() {
     assertHeader(r, "Host", "localhost:42069");
     assertHeader(r, "User-Agent", "curl/7.81.0");
     assertHeader(r, "Accept", "*/*");
+    assertHeader(r, "Content-Length", "14");
+    assertString("Body body body", r->body);
+    assertInt(14, r->bodySize);
     freeHttpRequest(r);
     freeStream(stream);
 

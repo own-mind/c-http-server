@@ -40,6 +40,7 @@ int main() {
             RequestHeader h = rq->headers[i];
             printf("      %s: %s\n", h.key, h.value);
         }
+        printf(" - Body (%ld):\n%s\n", rq->bodySize, rq->body);
 
         freeStream(stream);
         freeHttpRequest(rq);

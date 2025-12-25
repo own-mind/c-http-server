@@ -149,21 +149,21 @@ int parseHeaders(HttpRequest *r, CharStream *stream) {
 
         // Reading value. Here, we read until line break and trim optional OWS
         header.value = malloc(0);
-        i = 0;
+        int valueN = 0;
         int lastWhitespaceStart = -1;
         while(!eof(stream) && peek(stream) != '\r' && peek(stream) != '\n') {
-            header.value = realloc(header.value, ++i);
+            header.value = realloc(header.value, ++valueN);
             char c = next(stream);
-            header.value[i - 1] = c;
+            header.value[valueN - 1] = c;
 
             if (c != ' ') {
                 lastWhitespaceStart = -1;
-            } else if (i > 1 && header.value[i - 2] != ' ') {
-                lastWhitespaceStart = i - 2;
+            } else if (valueN > 1 && header.value[valueN - 2] != ' ') {
+                lastWhitespaceStart = valueN - 2;
             }
         } 
 
-        if (i == 0) {  // Value cannot be empty
+        if (valueN == 0) {  // Value cannot be empty
             errno = EPROTO;
             return 0;
         }
@@ -179,8 +179,31 @@ int parseHeaders(HttpRequest *r, CharStream *stream) {
         skip(stream); // Skip '\r
         skip(stream); // Skip '\n'
         
-        headers = realloc(headers, ++n * sizeof(RequestHeader));
-        headers[n - 1] = header;
+        // If there is duplicate key, merge the value, add the key-value pair otherwise
+        int foundDuplicate = -1;
+        for (int i = 0; i < n; i++) {
+            if (!strcmp(headers[i].key, header.key)) {
+                foundDuplicate = i;
+                break;
+            }
+        }
+
+        if (foundDuplicate < 0) {
+            headers = realloc(headers, ++n * sizeof(RequestHeader));
+            headers[n - 1] = header;
+        } else {
+            RequestHeader found = headers[foundDuplicate];
+            int foundLen = strlen(found.value);
+            char *catValue = malloc(foundLen + 1 + valueN + 1);
+            strncpy(catValue, found.value, foundLen);
+            catValue[foundLen] = ',';
+            strncpy(catValue + foundLen + 1, header.value, valueN);
+
+            free(found.value);
+            free(header.value);
+            free(header.key);
+            headers[foundDuplicate].value = catValue;
+        }
     }
     
     skip(stream); // Skip '\r
@@ -191,6 +214,27 @@ int parseHeaders(HttpRequest *r, CharStream *stream) {
     return 1;
 }
 
+int parseBody(HttpRequest *r, CharStream *stream) {
+    char *lenstr = getHeaderValue(r, "Content-Length");
+    if (lenstr == NULL) return 1;  // No body
+    int len = atol(lenstr);
+
+    r->bodySize = len;
+    r->body = malloc(len + 1);
+
+    for (int i = 0; i < len; i++) {
+        if (eof(stream)) {
+            errno = EPROTO;
+            return 0;
+        }
+
+        r->body[i] = skip(stream);
+    }
+    r->body[len] = '\0';
+
+    return 1;
+}
+
 HttpRequest *parseHttpRequest(CharStream *stream) {
     HttpRequest *result = calloc(1, sizeof(HttpRequest));
 
@@ -198,6 +242,9 @@ HttpRequest *parseHttpRequest(CharStream *stream) {
     if (!success) return NULL;
 
     success = parseHeaders(result, stream);
+    if (!success) return NULL;
+
+    success = parseBody(result, stream);
     if (!success) return NULL;
 
     return result;
