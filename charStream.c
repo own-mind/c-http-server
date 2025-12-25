@@ -5,6 +5,7 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <unistd.h>
+#include <stdbool.h>
 #include "charStream.h"
 
 struct CharStream {
@@ -12,11 +13,27 @@ struct CharStream {
     char (*next)(void *state);
     int (*eof)(void *state);
     void (*free)(void *state);
+
     char current;
+    bool peeked;
 };
 
 char peek(CharStream *stream) {
+    if (!stream->peeked) {
+        stream->current = stream->next(stream->state);
+        stream->peeked = true;
+    }
     return stream->current;
+}
+
+/**
+ * Skips current char without peeking into the next (unlike next function)
+ */
+void skip(CharStream *stream) {
+    if (!stream->peeked) {
+        stream->next(stream->state);
+    }
+    stream->peeked = false;
 }
 
 char next(CharStream *stream) {
@@ -41,7 +58,7 @@ int eof(CharStream *stream) {
 }
 
 void initializeStream(CharStream *stream) {
-    stream->current = stream->next(stream->state);
+    stream->peeked = false;
 }
 
 void freeStream(CharStream *stream) {

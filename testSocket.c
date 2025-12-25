@@ -35,6 +35,11 @@ int main() {
         HttpRequest *rq = parseHttpRequest(stream);
 
         printf("Request received:\n - Method: %d\n - Target: %s\n - HTTP version: %s\n", rq->method, rq->target, rq->httpVersion);
+        printf(" - Headers:\n");
+        for (int i = 0; i < rq->headersSize; i++) {
+            RequestHeader h = rq->headers[i];
+            printf("      %s: %s\n", h.key, h.value);
+        }
 
         freeStream(stream);
         freeHttpRequest(rq);

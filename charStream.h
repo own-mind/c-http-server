@@ -6,6 +6,7 @@ typedef struct CharStream CharStream;
 
 char peek(CharStream *stream);
 char next(CharStream *stream);
+void skip(CharStream *stream);
 int eof(CharStream *stream);
 void freeStream(CharStream *stream);
 

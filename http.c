@@ -64,12 +64,12 @@ int parseRequestLine(HttpRequest *result, CharStream *stream) {
     }
     result->method = method;
 
-    next(stream); // Skip ' '
+    skip(stream); // Skip ' '
     
     String targetString = collectUntilChar(stream, ' ');
     result->target = targetString.chars;
 
-    next(stream); // Skip ' '
+    skip(stream); // Skip ' '
 
     String httpVersion = collectUntilChar(stream, '\r');
 
@@ -81,8 +81,8 @@ int parseRequestLine(HttpRequest *result, CharStream *stream) {
     result->httpVersion = strdup(httpVersion.chars + 5);  // Cutting HTTP/ from the start
     free(httpVersion.chars);
 
-    next(stream); // Skip '\r
-    next(stream); // Skip '\n'
+    skip(stream); // Skip '\r
+    skip(stream); // Skip '\n'
 
     return 1;
 }
@@ -95,7 +95,7 @@ int parseHeaders(HttpRequest *r, CharStream *stream) {
     while(!eof(stream) && peek(stream) != '\r') {
         // Skipping OWS
         while(!eof(stream) && peek(stream) == ' ') {
-            next(stream);
+            skip(stream);
         } 
 
         if(peek(stream) == '\r' || peek(stream) == '\n') {
@@ -122,11 +122,11 @@ int parseHeaders(HttpRequest *r, CharStream *stream) {
             return 0;
         }
 
-        next(stream); // Skip ':'
+        skip(stream); // Skip ':'
 
         // Skipping OWS
         while(!eof(stream) && peek(stream) == ' ') {
-            next(stream);
+            skip(stream);
         } 
 
         // Reading value. Here, we read until line break and trim optional OWS
@@ -150,21 +150,23 @@ int parseHeaders(HttpRequest *r, CharStream *stream) {
             return 0;
         }
 
-        char *withoutOWS = malloc(lastWhitespaceStart + 2); // +1 for actual size, +1 for \0
-        strncpy(withoutOWS, header.value, lastWhitespaceStart + 1);
-        withoutOWS[lastWhitespaceStart + 1] = '\0';
-        free(header.value);
-        header.value = withoutOWS;
+        if (lastWhitespaceStart > 0) {
+            char *withoutOWS = malloc(lastWhitespaceStart + 2); // +1 for actual size, +1 for \0
+            strncpy(withoutOWS, header.value, lastWhitespaceStart + 1);
+            withoutOWS[lastWhitespaceStart + 1] = '\0';
+            free(header.value);
+            header.value = withoutOWS;
+        }
 
-        next(stream); // Skip '\r
-        next(stream); // Skip '\n'
+        skip(stream); // Skip '\r
+        skip(stream); // Skip '\n'
         
         headers = realloc(headers, ++n * sizeof(RequestHeader));
         headers[n - 1] = header;
     }
     
-    next(stream); // Skip '\r
-    next(stream); // Skip '\n'
+    skip(stream); // Skip '\r
+    skip(stream); // Skip '\n'
 
     r->headers = headers;
     r->headersSize = n;
