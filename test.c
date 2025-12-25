@@ -40,6 +40,17 @@ void assertInt(int expected, int actual) {
     }
 }
 
+// Looks for header with provided key and value
+void assertHeader(HttpRequest *r, char *key, char *value) {
+    char *v = getHeaderValue(r, key);
+    if (v == NULL) {
+        printf("Test failed.\nExpected header '%s: %s', but it doesn't exists\n", key, value);
+        exit(1);
+    }
+
+    assertString(value, v);
+}
+
 void assert(int condition, char *message) {
     if (!condition) {
         printf("Test failed: %s\n", message);
@@ -48,10 +59,11 @@ void assert(int condition, char *message) {
 }
 
 int main() {
+    int testCount = 0;
     CharStream *stream;
     HttpRequest *r;
 
-    printf("Test #1\n");
+    printf("Test #%d: Parsing Request Line\n", ++testCount);
     stream = createStringStream("GET / HTTP/1.1\r\nHost: localhost:42069\r\nUser-Agent: curl/7.81.0\r\nAccept: */*\r\n\r\n");
     r = parseHttpRequest(stream);
     assertNotNull(r);
@@ -61,8 +73,8 @@ int main() {
     freeHttpRequest(r);
     freeStream(stream);
 
-    printf("Test #2\n");
-    stream = createStringStream("GET /coffee HTTP/1.1\r\nHost: localhost:42069\r\nUser-Agent: curl/7.81.0\r\nAccept: */*\r\n\r\n");
+    printf("Test #%d: Parsing Request Line\n", ++testCount);
+    stream = createStringStream("GET /coffee HTTP/1.1\r\nHost:localhost:42069\r\nUser-Agent: curl/7.81.0\r\nAccept: */*\r\n\r\n");
     r = parseHttpRequest(stream);
     assertNotNull(r);
     assertInt(GET, r->method);
@@ -71,8 +83,22 @@ int main() {
     freeHttpRequest(r);
     freeStream(stream);
 
-    printf("Test #3\n");
+    printf("Test #%d: Parsing Corrupted Request Line\n", ++testCount);
     stream = createStringStream("/coffee HTTP/1.1\r\nHost: localhost:42069\r\nUser-Agent: curl/7.81.0\r\nAccept: */*\r\n\r\n");
+    r = parseHttpRequest(stream);
+    assert(r == NULL, "Http request should return null");
+    freeStream(stream);
+
+    printf("Test #%d: Parsing Goofy Header\n", ++testCount);
+    stream = createStringStream("GET /coffee HTTP/1.1\r\n        Host:   localhost:42069     \r\n\r\n");
+    r = parseHttpRequest(stream);
+    assertNotNull(r);
+    assertHeader(r, "Host", "localhost:42069");
+    freeHttpRequest(r);
+    freeStream(stream);
+
+    printf("Test #%d: Parsing Corrupted Header\n", ++testCount);
+    stream = createStringStream("GET /coffee HTTP/1.1\r\n        Host : localhost:42069     \r\n\r\n");
     r = parseHttpRequest(stream);
     assert(r == NULL, "Http request should return null");
     freeStream(stream);

@@ -10,5 +10,6 @@ int eof(CharStream *stream);
 void freeStream(CharStream *stream);
 
 CharStream *createStringStream(char *data);
+CharStream *createSocketStream(int clientSockfd);
 
 #endif // !CHAR_STREAM

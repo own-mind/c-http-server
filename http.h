@@ -32,6 +32,11 @@ typedef struct  {
   int bodySize;
 } HttpRequest;
 
+/**
+ * Looks for value of a header with provided key, or null of not found.
+ */
+char *getHeaderValue(HttpRequest *r, char *key);
+
 void freeHttpRequest(HttpRequest *r);
 
 HttpRequest *parseHttpRequest(CharStream *stream);

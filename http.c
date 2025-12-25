@@ -7,37 +7,6 @@
 #include <string.h>
 #include "http.h"
 
-LineArray getLines(int clientSockfd) {
-    char line[256];
-    char **result = malloc(0);
-    int n = 0;
-    
-    size_t lineSize;
-    char *resultLine;
-    char readByte;
-    int i;
-    ssize_t recvSize = 1;
-    while (recvSize > 0) {
-        int i = 0;
-        while (i < sizeof(line) && (recvSize = recv(clientSockfd, &readByte, 1, 0)) > 0) {
-            line[i++] = readByte;
-            if (readByte == '\n') break;
-        }
-        if (i == 0) break;
-        line[i] = '\0';
-        result = realloc(result, ++n * sizeof(char*));
-
-        lineSize = strlen(line);
-        resultLine = malloc((lineSize + 1) * sizeof(char));
-        strncpy(resultLine, line, lineSize);
-
-        result[n - 1] = resultLine;
-    }
-    
-    LineArray arr = { result, n } ;
-    return arr;
-}
-
 typedef struct {
     char *chars;
     int length;  // Length excluding \0
@@ -118,63 +87,125 @@ int parseRequestLine(HttpRequest *result, CharStream *stream) {
     return 1;
 }
 
+int parseHeaders(HttpRequest *r, CharStream *stream) {
+    RequestHeader *headers = malloc(0);
+    int n = 0;
+
+    //TODO a bit weak condition, heavily assuming '\r\n'
+    while(!eof(stream) && peek(stream) != '\r') {
+        // Skipping OWS
+        while(!eof(stream) && peek(stream) == ' ') {
+            next(stream);
+        } 
+
+        if(peek(stream) == '\r' || peek(stream) == '\n') {
+            errno = EPROTO;
+            return 0;
+        }
+
+        RequestHeader header;
+        
+        // Reading key
+        header.key = malloc(0);
+        int i = 0;
+        while(!eof(stream) && peek(stream) != ':') {
+            if(peek(stream) == ' ' || peek(stream) == '\n' || peek(stream) == '\r') {
+                errno = EPROTO;  // Not allowing whitespaces before colon
+                return 0;
+            }
+            header.key = realloc(header.key, ++i);
+            header.key[i - 1] = next(stream);
+        } 
+
+        if (i == 0) {  // Key cannot be empty
+            errno = EPROTO;
+            return 0;
+        }
+
+        next(stream); // Skip ':'
+
+        // Skipping OWS
+        while(!eof(stream) && peek(stream) == ' ') {
+            next(stream);
+        } 
+
+        // Reading value. Here, we read until line break and trim optional OWS
+        header.value = malloc(0);
+        i = 0;
+        int lastWhitespaceStart = -1;
+        while(!eof(stream) && peek(stream) != '\r' && peek(stream) != '\n') {
+            header.value = realloc(header.value, ++i);
+            char c = next(stream);
+            header.value[i - 1] = c;
+
+            if (c != ' ') {
+                lastWhitespaceStart = -1;
+            } else if (i > 1 && header.value[i - 2] != ' ') {
+                lastWhitespaceStart = i - 2;
+            }
+        } 
+
+        if (i == 0) {  // Value cannot be empty
+            errno = EPROTO;
+            return 0;
+        }
+
+        char *withoutOWS = malloc(lastWhitespaceStart + 2); // +1 for actual size, +1 for \0
+        strncpy(withoutOWS, header.value, lastWhitespaceStart + 1);
+        withoutOWS[lastWhitespaceStart + 1] = '\0';
+        free(header.value);
+        header.value = withoutOWS;
+
+        next(stream); // Skip '\r
+        next(stream); // Skip '\n'
+        
+        headers = realloc(headers, ++n * sizeof(RequestHeader));
+        headers[n - 1] = header;
+    }
+    
+    next(stream); // Skip '\r
+    next(stream); // Skip '\n'
+
+    r->headers = headers;
+    r->headersSize = n;
+    return 1;
+}
+
 HttpRequest *parseHttpRequest(CharStream *stream) {
     HttpRequest *result = calloc(1, sizeof(HttpRequest));
 
     int success = parseRequestLine(result, stream);
     if (!success) return NULL;
 
+    success = parseHeaders(result, stream);
+    if (!success) return NULL;
+
     return result;
+}
+
+char *getHeaderValue(HttpRequest *r, char *key) {
+    RequestHeader h;
+    for (int i = 0; i < r->headersSize; i++) {
+        h = r->headers[i];
+        if (!strcmp(h.key, key)) {
+            return h.value;
+        }
+    }
+
+    return NULL;
 }
 
 void freeHttpRequest(HttpRequest *r) {
     free(r->target);
     free(r->httpVersion);
     free(r->body);
+
+    for (int i = 0; i < r->headersSize; i++) {
+        RequestHeader h = r->headers[i];
+        free(h.key);
+        free(h.value);
+    }
+    free(r->headers);
+
     free(r);
-}
-
-void freeLineArray(LineArray arr) {
-    for (int i = 0; i < arr.size; i++) {
-        free(arr.lines[i]);
-    }
-    free(arr.lines);
-}
-
-int testSocket() {
-    int sockfd;
-    struct sockaddr_in servAddr;
-
-    sockfd = socket(AF_INET, SOCK_STREAM, 0);
-    if (sockfd < 0) {
-        perror("Unable to create socket");
-        return 1;
-    }
-
-    servAddr.sin_family = AF_INET;
-    servAddr.sin_port = htons(42069);
-    inet_pton(AF_INET, "127.0.0.1", &servAddr.sin_addr);
-
-    bind(sockfd, (struct sockaddr*) &servAddr, sizeof(servAddr));
-    if (listen(sockfd, 1) < 0) {
-        perror("Unable to listen");
-        return 1;
-    }
-    
-    while (1) {
-        struct sockaddr clientAddr;
-        socklen_t clientAddrLen;
-        int clientSockfd = accept(sockfd, (struct sockaddr *) &clientAddr, &clientAddrLen);
-
-        LineArray arr = getLines(clientSockfd);
-        for (int i = 0; i < arr.size; i++) {
-            printf("read: %s\n", arr.lines[i]);
-            free(arr.lines[i]);
-        }
-        free(arr.lines);
-
-        close(clientSockfd);
-    }
-
-    close(sockfd);
 }
