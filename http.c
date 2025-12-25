@@ -87,6 +87,22 @@ int parseRequestLine(HttpRequest *result, CharStream *stream) {
     return 1;
 }
 
+int validateHeader(RequestHeader h) {
+    char c;
+    int i = 0;
+    while ((c = h.key[i++]) != '\0') {
+        if (!(
+            (c >= '!' && c <= '.' && c != '"' && c != '(' && c != ')' && c != ',' || c >= '^' && c <= '`' || c == '|' || c == '~')   // Special chars
+            || (c >= '0' && c <= '9') || (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z')
+        )) {
+            errno = EPROTO;
+            return 0;
+        }
+    }
+
+    return 1;
+}
+
 int parseHeaders(HttpRequest *r, CharStream *stream) {
     RequestHeader *headers = malloc(0);
     int n = 0;
@@ -121,6 +137,8 @@ int parseHeaders(HttpRequest *r, CharStream *stream) {
             errno = EPROTO;
             return 0;
         }
+
+        if(!validateHeader(header)) return 0;
 
         skip(stream); // Skip ':'
 
@@ -189,7 +207,7 @@ char *getHeaderValue(HttpRequest *r, char *key) {
     RequestHeader h;
     for (int i = 0; i < r->headersSize; i++) {
         h = r->headers[i];
-        if (!strcmp(h.key, key)) {
+        if (!strcasecmp(h.key, key)) {
             return h.value;
         }
     }

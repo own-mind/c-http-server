@@ -77,7 +77,7 @@ int main() {
     printf("Test #%d: Parsing Corrupted Request Line\n", ++testCount);
     stream = createStringStream("/coffee HTTP/1.1\r\nHost: localhost:42069\r\nUser-Agent: curl/7.81.0\r\nAccept: */*\r\n\r\n");
     r = parseHttpRequest(stream);
-    assert(r == NULL, "Http request should return null");
+    assert(r == NULL, "Http request parsing should return null");
     freeStream(stream);
 
     printf("Test #%d: Parsing Goofy Header\n", ++testCount);
@@ -91,7 +91,30 @@ int main() {
     printf("Test #%d: Parsing Corrupted Header\n", ++testCount);
     stream = createStringStream("GET /coffee HTTP/1.1\r\n        Host : localhost:42069     \r\n\r\n");
     r = parseHttpRequest(stream);
-    assert(r == NULL, "Http request should return null");
+    assert(r == NULL, "Http request parsing should return null");
+    freeStream(stream);
+
+    printf("Test #%d: Header Key Constrains\n", ++testCount);
+    stream = createStringStream("GET /coffee HTTP/1.1\r\nHost-Post-mOsT: localhost:42069\r\nShould-!#$%&'*+-.^_`|~0123456789-Allowed: Value\r\n\r\n");
+    r = parseHttpRequest(stream);
+    assertNotNull(r);
+    assertHeader(r, "Host-Post-mOsT", "localhost:42069");
+    assertHeader(r, "host-post-most", "localhost:42069");
+    assertHeader(r, "hOst-pOST-mOSt", "localhost:42069");
+    assertHeader(r, "Should-!#$%&'*+-.^_`|~0123456789-Allowed", "Value");
+    freeHttpRequest(r);
+    freeStream(stream);
+
+    printf("Test #%d: Header Invalid Key #1\n", ++testCount);
+    stream = createStringStream("GET /coffee HTTP/1.1\r\nОшибка: Value\r\n\r\n");
+    r = parseHttpRequest(stream);
+    assert(r == NULL, "Http request parsing should return null");
+    freeStream(stream);
+
+    printf("Test #%d: Header Invalid Key #2\n", ++testCount);
+    stream = createStringStream("GET /coffee HTTP/1.1\r\nError Error: Value\r\n\r\n");
+    r = parseHttpRequest(stream);
+    assert(r == NULL, "Http request parsing should return null");
     freeStream(stream);
 
     printf("Test #%d: Parsing Full Request\n", ++testCount);
