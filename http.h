@@ -18,14 +18,14 @@ typedef enum {
 typedef struct {
   char *key;
   char *value;
-} RequestHeader;
+} Header;
 
 typedef struct  {
   RequestMethod method;
   char *target;
   char *httpVersion;
 
-  RequestHeader *headers;
+  Header *headers;
   int headersSize;
 
   char *body;

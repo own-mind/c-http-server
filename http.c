@@ -87,7 +87,7 @@ int parseRequestLine(HttpRequest *result, CharStream *stream) {
     return 1;
 }
 
-int validateHeader(RequestHeader h) {
+int validateHeader(Header h) {
     char c;
     int i = 0;
     while ((c = h.key[i++]) != '\0') {
@@ -104,7 +104,7 @@ int validateHeader(RequestHeader h) {
 }
 
 int parseHeaders(HttpRequest *r, CharStream *stream) {
-    RequestHeader *headers = malloc(0);
+    Header *headers = malloc(0);
     int n = 0;
 
     //TODO a bit weak condition, heavily assuming '\r\n'
@@ -119,7 +119,7 @@ int parseHeaders(HttpRequest *r, CharStream *stream) {
             return 0;
         }
 
-        RequestHeader header;
+        Header header;
         
         // Reading key
         header.key = malloc(0);
@@ -189,10 +189,10 @@ int parseHeaders(HttpRequest *r, CharStream *stream) {
         }
 
         if (foundDuplicate < 0) {
-            headers = realloc(headers, ++n * sizeof(RequestHeader));
+            headers = realloc(headers, ++n * sizeof(Header));
             headers[n - 1] = header;
         } else {
-            RequestHeader found = headers[foundDuplicate];
+            Header found = headers[foundDuplicate];
             int foundLen = strlen(found.value);
             char *catValue = malloc(foundLen + 1 + valueN + 1);
             strncpy(catValue, found.value, foundLen);
@@ -251,7 +251,7 @@ HttpRequest *parseHttpRequest(CharStream *stream) {
 }
 
 char *getHeaderValue(HttpRequest *r, char *key) {
-    RequestHeader h;
+    Header h;
     for (int i = 0; i < r->headersSize; i++) {
         h = r->headers[i];
         if (!strcasecmp(h.key, key)) {
@@ -268,7 +268,7 @@ void freeHttpRequest(HttpRequest *r) {
     free(r->body);
 
     for (int i = 0; i < r->headersSize; i++) {
-        RequestHeader h = r->headers[i];
+        Header h = r->headers[i];
         free(h.key);
         free(h.value);
     }
