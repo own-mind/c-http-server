@@ -6,6 +6,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include "http.h"
+#include "charStream.h"
 
 typedef struct {
     char *chars;
@@ -23,7 +24,7 @@ int collectUntilCharBuffered(CharStream *stream, char *buffer, int bufferLength,
 }
 
 String collectUntilChar(CharStream *stream, char until) {
-    char *result = malloc(0);
+    char *result = NULL;
     int n = 0;
     while(!eof(stream) && peek(stream) != until) {
         result = realloc(result, ++n * sizeof(char));
@@ -97,7 +98,7 @@ int validateHeader(Header h) {
     int i = 0;
     while ((c = h.key[i++]) != '\0') {
         if (!(
-            (c >= '!' && c <= '.' && c != '"' && c != '(' && c != ')' && c != ',' || c >= '^' && c <= '`' || c == '|' || c == '~')   // Special chars
+            ((c >= '!' && c <= '.' && c != '"' && c != '(' && c != ')' && c != ',') || (c >= '^' && c <= '`') || c == '|' || c == '~')   // Special chars
             || (c >= '0' && c <= '9') || (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z')
         )) {
             errno = BAD_REQUEST;
@@ -109,7 +110,7 @@ int validateHeader(Header h) {
 }
 
 int parseHeaders(HttpRequest *r, CharStream *stream) {
-    Header *headers = malloc(0);
+    Header *headers = NULL;
     int n = 0;
 
     //TODO a bit weak condition, heavily assuming '\r\n'
@@ -127,7 +128,7 @@ int parseHeaders(HttpRequest *r, CharStream *stream) {
         Header header;
         
         // Reading key
-        header.key = malloc(0);
+        header.key = NULL;
         int i = 0;
         while(!eof(stream) && peek(stream) != ':') {
             if(peek(stream) == ' ' || peek(stream) == '\n' || peek(stream) == '\r') {
@@ -143,6 +144,10 @@ int parseHeaders(HttpRequest *r, CharStream *stream) {
             return 0;
         }
 
+        // Adding terminator
+        header.key = realloc(header.key, ++i);
+        header.key[i - 1] = '\0';
+
         if(!validateHeader(header)) return 0;
 
         skip(stream); // Skip ':'
@@ -152,13 +157,13 @@ int parseHeaders(HttpRequest *r, CharStream *stream) {
             skip(stream);
         } 
 
-        // Reading value. Here, we read until line break and trim optional OWS
-        header.value = malloc(0);
+        // Reading value. Here, we read until line break and trim OWS
+        header.value = NULL;
         int valueN = 0;
         int lastWhitespaceStart = -1;
         while(!eof(stream) && peek(stream) != '\r' && peek(stream) != '\n') {
-            header.value = realloc(header.value, ++valueN);
             char c = next(stream);
+            header.value = realloc(header.value, ++valueN);
             header.value[valueN - 1] = c;
 
             if (c != ' ') {
@@ -173,6 +178,10 @@ int parseHeaders(HttpRequest *r, CharStream *stream) {
             return 0;
         }
 
+        // Adding terminator
+        header.value = realloc(header.value, ++valueN);
+        header.value[valueN - 1] = '\0';
+
         if (lastWhitespaceStart > 0) {
             char *withoutOWS = malloc(lastWhitespaceStart + 2); // +1 for actual size, +1 for \0
             strncpy(withoutOWS, header.value, lastWhitespaceStart + 1);
@@ -183,7 +192,7 @@ int parseHeaders(HttpRequest *r, CharStream *stream) {
 
         skip(stream); // Skip '\r
         skip(stream); // Skip '\n'
-        
+
         // If there is duplicate key, merge the value, add the key-value pair otherwise
         int foundDuplicate = -1;
         for (int i = 0; i < n; i++) {
