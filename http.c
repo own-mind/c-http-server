@@ -74,12 +74,17 @@ int parseRequestLine(HttpRequest *result, CharStream *stream) {
     String httpVersion = collectUntilChar(stream, '\r');
 
     if(strncmp(httpVersion.chars, "HTTP/", 5)) {
-        errno = EPROTO;
+        errno = BAD_REQUEST;
         return 0;
     }
 
     result->httpVersion = strdup(httpVersion.chars + 5);  // Cutting HTTP/ from the start
     free(httpVersion.chars);
+
+    if (strcmp(result->httpVersion, "1.1")) {   // Only 1.1 supported
+        errno = HTTP_VERSION_NOT_SUPPORTED;
+        return 0;
+    }
 
     skip(stream); // Skip '\r
     skip(stream); // Skip '\n'
@@ -95,7 +100,7 @@ int validateHeader(Header h) {
             (c >= '!' && c <= '.' && c != '"' && c != '(' && c != ')' && c != ',' || c >= '^' && c <= '`' || c == '|' || c == '~')   // Special chars
             || (c >= '0' && c <= '9') || (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z')
         )) {
-            errno = EPROTO;
+            errno = BAD_REQUEST;
             return 0;
         }
     }
@@ -115,7 +120,7 @@ int parseHeaders(HttpRequest *r, CharStream *stream) {
         } 
 
         if(peek(stream) == '\r' || peek(stream) == '\n') {
-            errno = EPROTO;
+            errno = BAD_REQUEST;
             return 0;
         }
 
@@ -126,7 +131,7 @@ int parseHeaders(HttpRequest *r, CharStream *stream) {
         int i = 0;
         while(!eof(stream) && peek(stream) != ':') {
             if(peek(stream) == ' ' || peek(stream) == '\n' || peek(stream) == '\r') {
-                errno = EPROTO;  // Not allowing whitespaces before colon
+                errno = BAD_REQUEST;  // Not allowing whitespaces before colon
                 return 0;
             }
             header.key = realloc(header.key, ++i);
@@ -134,7 +139,7 @@ int parseHeaders(HttpRequest *r, CharStream *stream) {
         } 
 
         if (i == 0) {  // Key cannot be empty
-            errno = EPROTO;
+            errno = BAD_REQUEST;
             return 0;
         }
 
@@ -164,7 +169,7 @@ int parseHeaders(HttpRequest *r, CharStream *stream) {
         } 
 
         if (valueN == 0) {  // Value cannot be empty
-            errno = EPROTO;
+            errno = BAD_REQUEST;
             return 0;
         }
 
@@ -209,14 +214,16 @@ int parseHeaders(HttpRequest *r, CharStream *stream) {
     skip(stream); // Skip '\r
     skip(stream); // Skip '\n'
 
-    r->headers = headers;
-    r->headersSize = n;
+    Headers hs = { headers, n };
+    r->headers = hs;
     return 1;
 }
 
 int parseBody(HttpRequest *r, CharStream *stream) {
-    char *lenstr = getHeaderValue(r, "Content-Length");
-    if (lenstr == NULL) return 1;  // No body
+    char *lenstr = getHeaderValue(r->headers, "Content-Length");
+    if (lenstr == NULL) {
+        return 1; // No body
+    } 
     int len = atol(lenstr);
 
     r->bodySize = len;
@@ -224,7 +231,7 @@ int parseBody(HttpRequest *r, CharStream *stream) {
 
     for (int i = 0; i < len; i++) {
         if (eof(stream)) {
-            errno = EPROTO;
+            errno = BAD_REQUEST;
             return 0;
         }
 
@@ -250,10 +257,71 @@ HttpRequest *parseHttpRequest(CharStream *stream) {
     return result;
 }
 
-char *getHeaderValue(HttpRequest *r, char *key) {
+Headers createDefaultHeaders(int contentLength) {
+    static const int defaultSize = 1;
+    Headers hs = { calloc(defaultSize, sizeof(Headers)), defaultSize };
+
+    char buf[16];
+    sprintf(buf, "%d", contentLength);
+    hs.entries[0] = (Header) { strdup("Content-Length"), strdup(buf) };
+
+    return hs;
+}
+
+HttpResponse *ok_empty() {
+    return ok_text(NULL);
+}
+
+HttpResponse *ok_text(char *text) {
+    return ok_body(text, text != NULL ? strlen(text) : 0);
+}
+
+HttpResponse *ok_body(char *body, int len) {
+    return ok((Headers){ NULL, 0 }, body, len);
+}
+
+HttpResponse *ok_file(char *path) {
+    FILE *f = fopen(path, "r");
+    if (f == NULL) {
+        printf("File '%s' doesn't exist\n", path);
+        return NULL;
+    }
+
+    fseek(f, 0, SEEK_END);
+    int len = ftell(f);
+    rewind(f);
+    char *res = malloc(len + 1);
+
+    for (int i = 0; i < len; i++) {
+        res[i] = fgetc(f);
+    }
+
+    fclose(f);
+    return ok_body(res, len);
+}
+
+HttpResponse *ok(Headers headers, char *body, int len) {
+    HttpResponse *r = calloc(1, sizeof(HttpResponse));
+    r->code = OK;
+    r->headers = createDefaultHeaders(len);     
+
+    if (headers.length != 0) {
+        r->headers.length += headers.length;
+        r->headers.entries = realloc(r->headers.entries, r->headers.length);
+        memcpy(r->headers.entries + (r->headers.length - headers.length - 1), headers.entries, headers.length);
+        free(headers.entries);
+    }
+
+    r->body = strndup(body, len);
+    r->bodySize = len;
+
+    return r;
+}
+
+char *getHeaderValue(Headers headers, char *key) {
     Header h;
-    for (int i = 0; i < r->headersSize; i++) {
-        h = r->headers[i];
+    for (int i = 0; i < headers.length; i++) {
+        h = headers.entries[i];
         if (!strcasecmp(h.key, key)) {
             return h.value;
         }
@@ -267,12 +335,25 @@ void freeHttpRequest(HttpRequest *r) {
     free(r->httpVersion);
     free(r->body);
 
-    for (int i = 0; i < r->headersSize; i++) {
-        Header h = r->headers[i];
+    for (int i = 0; i < r->headers.length; i++) {
+        Header h = r->headers.entries[i];
         free(h.key);
         free(h.value);
     }
-    free(r->headers);
+    free(r->headers.entries);
+
+    free(r);
+}
+
+void freeHttpResponse(HttpResponse *r) {
+    free(r->body);
+
+    for (int i = 0; i < r->headers.length; i++) {
+        Header h = r->headers.entries[i];
+        free(h.key);
+        free(h.value);
+    }
+    free(r->headers.entries);
 
     free(r);
 }

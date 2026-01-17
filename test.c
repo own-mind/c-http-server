@@ -6,7 +6,7 @@
 
 void assertNotNull(void *p) {
     if (p == NULL) {
-        printf("\e[0;31mTest failed. Unexpected null\e[0m\n");
+        printf("\e[0;31mTest failed. Unexpected null (errno=%d).\e[0m\n", errno);
         exit(1);
     }
 }
@@ -42,7 +42,7 @@ void assertInt(int expected, int actual) {
 
 // Looks for header with provided key and value
 void assertHeader(HttpRequest *r, char *key, char *value) {
-    char *v = getHeaderValue(r, key);
+    char *v = getHeaderValue(r->headers, key);
     if (v == NULL) {
         printf("\e[0;31mTest failed.\nExpected header '%s: %s', but it doesn't exists\e[0m\n", key, value);
         exit(1);
@@ -70,7 +70,7 @@ int main() {
     assertInt(GET, r->method);
     assertString("/coffee", r->target);
     assertString("1.1", r->httpVersion);
-    assertInt(0, r->headersSize);
+    assertInt(0, r->headers.length);
     freeHttpRequest(r);
     freeStream(stream);
 

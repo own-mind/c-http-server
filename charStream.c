@@ -56,7 +56,7 @@ char next(CharStream *stream) {
 }
 
 int eof(CharStream *stream) {
-    return stream->eof(stream->state) && stream->current == '\0';
+    return stream->eof(stream->state) && (!stream->peeked || stream->current == '\0');
 }
 
 void initializeStream(CharStream *stream) {
