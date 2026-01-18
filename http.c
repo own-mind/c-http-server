@@ -266,13 +266,20 @@ HttpRequest *parseHttpRequest(CharStream *stream) {
     return result;
 }
 
-Headers createDefaultHeaders(int contentLength) {
-    static const int defaultSize = 1;
+Headers createDefaultHeaders(int contentLength, char *contentType) {
+    int defaultSize = 1 + (contentLength > 0 ? 2 : 0);
     Headers hs = { calloc(defaultSize, sizeof(Headers)), defaultSize };
 
-    char buf[16];
-    sprintf(buf, "%d", contentLength);
-    hs.entries[0] = (Header) { strdup("Content-Length"), strdup(buf) };
+    int i = 0;
+    hs.entries[i++] = (Header) { strdup("Connection"), strdup("close") };
+
+    if (contentLength > 0) {
+        hs.entries[i++] = (Header) { strdup("Content-Type"), strdup(contentType != NULL ? contentType : "text/plain") };
+
+        char buf[16];
+        sprintf(buf, "%d", contentLength);
+        hs.entries[i++] = (Header) { strdup("Content-Length"), strdup(buf) };
+    }
 
     return hs;
 }
@@ -282,14 +289,18 @@ HttpResponse *ok_empty() {
 }
 
 HttpResponse *ok_text(char *text) {
-    return ok_body(text, text != NULL ? strlen(text) : 0);
+    if (text == NULL) {
+        return ok_body(NULL, text, 0);
+    } else {
+        return ok_body("text/plain", text, strlen(text));
+    }
 }
 
-HttpResponse *ok_body(char *body, int len) {
-    return ok((Headers){ NULL, 0 }, body, len);
+HttpResponse *ok_body(char *type, char *body, int len) {
+    return ok((Headers){ NULL, 0 }, type, body, len);
 }
 
-HttpResponse *ok_file(char *path) {
+HttpResponse *ok_file(char *type, char *path) {
     FILE *f = fopen(path, "r");
     if (f == NULL) {
         printf("File '%s' doesn't exist\n", path);
@@ -306,13 +317,13 @@ HttpResponse *ok_file(char *path) {
     }
 
     fclose(f);
-    return ok_body(res, len);
+    return ok_body(type, res, len);
 }
 
-HttpResponse *ok(Headers headers, char *body, int len) {
+HttpResponse *ok(Headers headers, char *type, char *body, int len) {
     HttpResponse *r = calloc(1, sizeof(HttpResponse));
     r->code = OK;
-    r->headers = createDefaultHeaders(len);     
+    r->headers = createDefaultHeaders(len, type);     
 
     if (headers.length != 0) {
         r->headers.length += headers.length;
@@ -330,6 +341,7 @@ HttpResponse *ok(Headers headers, char *body, int len) {
 HttpResponse *badRequest() {
     HttpResponse *r = calloc(1, sizeof(HttpResponse));
     r->code = BAD_REQUEST;
+    r->headers = createDefaultHeaders(0, NULL);
     return r;
 }
 

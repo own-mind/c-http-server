@@ -112,9 +112,9 @@ char *getHeaderValue(Headers h, char *key);
 
 HttpResponse *ok_empty();
 HttpResponse *ok_text(char *text);
-HttpResponse *ok_file(char *path);
-HttpResponse *ok_body(char *body, int len);
-HttpResponse *ok(Headers headers, char *body, int len);
+HttpResponse *ok_file(char *type, char *path);
+HttpResponse *ok_body(char *type, char *body, int len);
+HttpResponse *ok(Headers headers, char *type, char *body, int len);
 
 HttpResponse *badRequest();
 

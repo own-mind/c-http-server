@@ -6,7 +6,8 @@ HttpResponse *_index(HttpRequest *rq) {
     if (rq->bodySize > 0) {
         printf("Body: %s\n", rq->body);
     }
-    return ok_file("examples/index.html");
+
+    return ok_file("text/html", "examples/index.html");
 }
 
 double extractNumber(int *index, char *s, int n) {

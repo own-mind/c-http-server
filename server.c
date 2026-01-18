@@ -200,6 +200,7 @@ void sserve(Server *server, int port) {
 
                 if (response != NULL) {
                     char *responseString = compileResponse(response);
+                    // printf("Sending:\n%s\n", responseString);
                     write(clientSockfd, responseString, strlen(responseString));
                     free(responseString);
                     free(response);
