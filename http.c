@@ -327,6 +327,12 @@ HttpResponse *ok(Headers headers, char *body, int len) {
     return r;
 }
 
+HttpResponse *badRequest() {
+    HttpResponse *r = calloc(1, sizeof(HttpResponse));
+    r->code = BAD_REQUEST;
+    return r;
+}
+
 char *getHeaderValue(Headers headers, char *key) {
     Header h;
     for (int i = 0; i < headers.length; i++) {

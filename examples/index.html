@@ -1,49 +1,214 @@
-<html>
-    <head>
-        <title>Calculator</title>
-<style>
-.calcCell {
-    background: #dddddd;
-    text-align: center;
-    padding-top: 20px;
-    border: 1px #eeeeee solid;
-    width: 50px;
-    height: 30px;
-}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Calculator</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
 
-.calcRow {
+        body {
+            min-height: 100vh;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+        }
 
-}
+        .calculator {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            width: 350px;
+        }
 
-</style>
-    </head>
-    <body>
-        <h2>Calculator</h2>
-        <div>
-            <div class="calcRow">
-                <div class="calcCell">1</div>
-                <div class="calcCell">2</div>
-                <div class="calcCell">3</div>
-                <div class="calcCell">/</div>
-            </div>
-            <div class="calcRow">
-                <div class="calcCell">4</div>
-                <div class="calcCell">5</div>
-                <div class="calcCell">6</div>
-                <div class="calcCell">*</div>
-            </div>
-            <div class="calcRow">
-                <div class="calcCell">7</div>
-                <div class="calcCell">8</div>
-                <div class="calcCell">9</div>
-                <div class="calcCell">-<div>
-            </div>
-            <div class="calcRow">
-                <div class="calcCell">.</div>
-                <div class="calcCell">0</div>
-                <div class="calcCell">=</div>
-                <div class="calcCell">+<div>
-            </div>
+        h1 {
+            text-align: center;
+            color: #667eea;
+            font-size: 24px;
+        }
+
+        .vibe-code-disclaimer {
+            text-align: center;
+            color: #ea7e66;
+            margin-bottom: 25px;
+            font-size: 14px;
+        }
+
+        .input-group {
+            margin-bottom: 15px;
+        }
+
+        label {
+            display: block;
+            color: #555;
+            font-size: 14px;
+            margin-bottom: 5px;
+            font-weight: 500;
+        }
+
+        input, select {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 10px;
+            font-size: 16px;
+            transition: all 0.3s;
+        }
+
+        input:focus, select:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        button {
+            width: 100%;
+            padding: 15px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-size: 18px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+            margin-top: 20px;
+        }
+
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 25px rgba(102, 126, 234, 0.4);
+        }
+
+        button:active {
+            transform: translateY(0);
+        }
+
+        .result {
+            margin-top: 20px;
+            padding: 20px;
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            border-radius: 10px;
+            text-align: center;
+            color: white;
+            font-size: 24px;
+            font-weight: 600;
+            min-height: 70px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            word-break: break-all;
+        }
+
+        .error {
+            background: linear-gradient(135deg, #fa709a 0%, #fee140 100%);
+        }
+
+        .request-info {
+            margin-top: 15px;
+            padding: 15px;
+            background: #f5f5f5;
+            border-radius: 10px;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            color: #333;
+            white-space: pre-wrap;
+            word-break: break-all;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+    </style>
+</head>
+<body>
+    <div class="calculator">
+        <h1>🧮 HTTP/1.1 Calculator</h1>
+        <h4 class="vibe-code-disclaimer">This .html file was vibe-coded</h4>
+        
+        <div class="input-group">
+            <label for="firstArg">First Number</label>
+            <input type="number" id="firstArg" step="any" placeholder="Enter first number" value="10">
         </div>
-    </body>
+
+        <div class="input-group">
+            <label for="op">Operation</label>
+            <select id="op">
+                <option value="+">+ (Add)</option>
+                <option value="-">- (Subtract)</option>
+                <option value="*">× (Multiply)</option>
+                <option value="/">/ (Divide)</option>
+                <option value="%">% (Modulo)</option>
+            </select>
+        </div>
+
+        <div class="input-group">
+            <label for="secondArg">Second Number</label>
+            <input type="number" id="secondArg" step="any" placeholder="Enter second number" value="5">
+        </div>
+
+        <button onclick="calculate()">Calculate</button>
+
+        <div class="result" id="result">Result will appear here</div>
+        <div class="request-info" id="requestInfo"></div>
+    </div>
+
+    <script>
+        async function calculate() {
+            const first = document.getElementById('firstArg').value;
+            const op = document.getElementById('op').value;
+            const second = document.getElementById('secondArg').value;
+            const result = document.getElementById('result');
+            const requestInfo = document.getElementById('requestInfo');
+
+            if (!first || !second) {
+                result.className = 'result error';
+                result.textContent = 'Please enter both numbers';
+                return;
+            }
+
+            // Build HTTP/1.1 request body with values on separate lines
+            const requestBody = `${first}\n${op}\n${second}`;
+            
+            // Display the request being sent
+            requestInfo.textContent = `Sending HTTP/1.1 request:\n\nPOST /calculate/ HTTP/1.1\nContent-Type: text/plain\nContent-Length: ${requestBody.length}\n\n${requestBody}`;
+
+            try {
+                const response = await fetch('calculate/', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'text/plain'
+                    },
+                    body: requestBody
+                });
+
+                if (response.ok) {
+                    const resultText = await response.text();
+                    result.className = 'result';
+                    result.textContent = `= ${resultText}`;
+                } else {
+                    result.className = 'result error';
+                    result.textContent = `Error: ${response.status} ${response.statusText}`;
+                }
+            } catch (error) {
+                result.className = 'result error';
+                result.textContent = `Error: ${error.message}`;
+                console.error('Calculation error:', error);
+            }
+        }
+
+        // Allow Enter key to calculate
+        document.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                calculate();
+            }
+        });
+    </script>
+</body>
 </html>

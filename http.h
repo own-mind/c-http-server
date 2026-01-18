@@ -116,6 +116,8 @@ HttpResponse *ok_file(char *path);
 HttpResponse *ok_body(char *body, int len);
 HttpResponse *ok(Headers headers, char *body, int len);
 
+HttpResponse *badRequest();
+
 void freeHttpResponse(HttpResponse *resp);
 void freeHttpRequest(HttpRequest *r);
 
