@@ -14,7 +14,7 @@ double extractNumber(int *index, char *s, int n) {
     char *buf = malloc(n);
     int i = 0;
     
-    while (i < n) {
+    while (*index < n) {
         char c = s[(*index)++];
         if (c == '\n') break;
 
@@ -58,9 +58,11 @@ HttpResponse *_calculate(HttpRequest *rq, char **matches, size_t matchesLen) {
 
 HttpResponse *_chunked(HttpRequest *rq, char **matches, size_t matchesLen) {
     int amount = atoi(matches[0]);
-    printf("Requesting: %d\n", amount);
 
-    return ok_chunked(amount, "image/jpeg", "examples/cat.jpg");
+    HttpResponse *r = ok_chunked(amount, "image/jpeg", "examples/cat.jpg");
+    addHeader(&r->trailers, "Test-Trailer", "12345");
+
+    return r;
 }
 
 int main() {

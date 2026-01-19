@@ -79,8 +79,11 @@ Route *findRoute(Server *s, HttpRequest *rq, char ***matchesOut) {
                 (*matchesOut)[i] = group;
             }
 
+            free(matches);
             return route;
         }
+
+        free(matches);
     }
 
     return NULL;
@@ -158,7 +161,37 @@ char *statusMessage(StatusCode code) {
     }
 }
 
-char *compileResponse(HttpResponse *r) {
+char *compileResponse(HttpResponse *r, char **trailersString) {
+    // Declaring trailers
+    if (r->trailers.length > 0) {
+        *trailersString = malloc(1);
+        *trailersString[0] = '\0';
+
+        char *trailerHeader = NULL;
+        char *old;
+
+        for (int i = 0; i < r->trailers.length; i++) {
+            Header *h = r->trailers.entries + i;
+
+            old = *trailersString;
+            asprintf(trailersString, "%s%s: %s\r\n", old, h->key, h->value);
+            free(old);
+
+            if (trailerHeader == NULL) {
+                trailerHeader = strdup(h->key);
+            } else {
+                old = trailerHeader;
+                asprintf(&trailerHeader, "%s, %s", old, h->key);
+                free(old);
+            }
+        }
+
+        addHeader(&r->headers, "Trailer", trailerHeader);
+        free(trailerHeader); // It is strduped
+    } else {
+        trailersString = NULL;
+    }
+
     char *result;
     asprintf(&result, "HTTP/1.1 %d %s\r\n", r->code, statusMessage(r->code));
     
@@ -187,7 +220,8 @@ char *compileResponse(HttpResponse *r) {
 void sendStatusResponse(StatusCode code, int clientSockfd) {
     HttpResponse *r = calloc(1, sizeof(HttpResponse));
     r->code = code;
-    char *rs = compileResponse(r);
+    char *ignore;
+    char *rs = compileResponse(r, &ignore);
     write(clientSockfd, rs, strlen(rs));
     free(rs);
     free(r);
@@ -215,7 +249,7 @@ void sendChunked(HttpResponse *response, int clientSockfd) {
         write(clientSockfd, "\r\n", 2);
     }
 
-    write(clientSockfd, "0\r\n\r\n", 5);  // Finishing chunked
+    write(clientSockfd, "0\r\n", 3);  // Finishing chunked
 
     free(buffer);
     fclose(f);
@@ -253,7 +287,7 @@ void sserve(Server *server, int port) {
         if (rq == NULL) {
             sendStatusResponse(errno > 0 ? (StatusCode) errno : BAD_REQUEST, clientSockfd);
         } else {
-            char **matches;
+            char **matches = NULL; 
             Route *route = findRoute(server, rq, &matches);
             if(route != NULL) {
                 HttpResponse *response = route->handler(rq, matches, route->expression.re_nsub);
@@ -264,7 +298,8 @@ void sserve(Server *server, int port) {
                 free(matches);
 
                 if (response != NULL) {
-                    char *responseString = compileResponse(response);
+                    char *trailersString = NULL;
+                    char *responseString = compileResponse(response, &trailersString);
                     // printf("Sending:\n%s\n", responseString);
                     write(clientSockfd, responseString, strlen(responseString));
                     free(responseString);
@@ -272,6 +307,13 @@ void sserve(Server *server, int port) {
                     if (response->bodyLocation != NULL) {  // Assuming chunked connection
                         sendChunked(response, clientSockfd);
                     }
+
+                    if (trailersString != NULL) {
+                        write(clientSockfd, trailersString, strlen(trailersString));
+                        free(trailersString);
+                    }
+
+                    write(clientSockfd, "\r\n", 2);
 
                     free(response);
                 } else {

@@ -100,6 +100,7 @@ typedef enum {
 typedef struct {
     StatusCode code;
     Headers headers;
+    Headers trailers;
 
     char *body;
     int bodySize;
