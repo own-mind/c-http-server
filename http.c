@@ -115,7 +115,7 @@ int parseHeaders(HttpRequest *r, CharStream *stream) {
 
     //TODO a bit weak condition, heavily assuming '\r\n'
     while(!eof(stream) && peek(stream) != '\r') {
-        // Skipping OWS
+// Skipping OWS
         while(!eof(stream) && peek(stream) == ' ') {
             skip(stream);
         } 
@@ -267,16 +267,18 @@ HttpRequest *parseHttpRequest(CharStream *stream) {
 }
 
 Headers createDefaultHeaders(int contentLength, char *contentType) {
-    int defaultSize = 3;
+    int defaultSize = 2 + (contentLength < 0 ? 0 : 1);
     Headers hs = { calloc(defaultSize, sizeof(Headers)), defaultSize };
 
     int i = 0;
     hs.entries[i++] = (Header) { strdup("Connection"), strdup("close") };
     hs.entries[i++] = (Header) { strdup("Content-Type"), strdup(contentType != NULL ? contentType : "text/plain") };
 
-    char buf[16];
-    sprintf(buf, "%d", contentLength);
-    hs.entries[i++] = (Header) { strdup("Content-Length"), strdup(buf) };
+    if (contentLength >= 0) {
+        char buf[16];
+        sprintf(buf, "%d", contentLength);
+        hs.entries[i++] = (Header) { strdup("Content-Length"), strdup(buf) };
+    }
 
     return hs;
 }
@@ -317,6 +319,18 @@ HttpResponse *ok_file(char *type, char *path) {
     return ok_body(type, res, len);
 }
 
+HttpResponse *ok_chunked(int chunkSize, char *type, char *path) {
+    HttpResponse *r = calloc(1, sizeof(HttpResponse));
+    r->code = OK;
+    r->headers = createDefaultHeaders(-1, type);     
+    addHeader(&r->headers, "Transfer-Encoding", "chunked");
+
+    r->bodyLocation = strdup(path);
+    r->chunkSize = chunkSize;
+
+    return r;
+}
+
 HttpResponse *ok(Headers headers, char *type, char *body, int len) {
     HttpResponse *r = calloc(1, sizeof(HttpResponse));
     r->code = OK;
@@ -354,6 +368,11 @@ char *getHeaderValue(Headers headers, char *key) {
     return NULL;
 }
 
+void addHeader(Headers *headers, char *key, char *val) {
+    headers->entries = realloc(headers->entries, (++headers->length) * sizeof(Header));
+    headers->entries[headers->length - 1] = (Header) { strdup(key), strdup(val) };
+}
+
 void freeHttpRequest(HttpRequest *r) {
     free(r->target);
     free(r->httpVersion);
@@ -371,6 +390,7 @@ void freeHttpRequest(HttpRequest *r) {
 
 void freeHttpResponse(HttpResponse *r) {
     free(r->body);
+    free(r->bodyLocation);
 
     for (int i = 0; i < r->headers.length; i++) {
         Header h = r->headers.entries[i];

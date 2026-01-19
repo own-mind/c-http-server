@@ -193,6 +193,34 @@ void sendStatusResponse(StatusCode code, int clientSockfd) {
     free(r);
 }
 
+void sendChunked(HttpResponse *response, int clientSockfd) {
+    int chunkSize = response->chunkSize;
+    FILE *f = fopen(response->bodyLocation, "r");
+    if (f == NULL) {
+        perror("Error opening file");
+        exit(1);
+    }
+
+    char *buffer = malloc(chunkSize);
+    int bytesRead;
+    char chunkSizeHex[32];
+    int cn;
+
+    while(!feof(f)) {
+        bytesRead = fread(buffer, 1, chunkSize, f);
+        
+        cn = snprintf(chunkSizeHex, 32, "%x\r\n", bytesRead);
+        write(clientSockfd, chunkSizeHex, cn);
+        write(clientSockfd, buffer, bytesRead);
+        write(clientSockfd, "\r\n", 2);
+    }
+
+    write(clientSockfd, "0\r\n\r\n", 5);  // Finishing chunked
+
+    free(buffer);
+    fclose(f);
+}
+
 void sserve(Server *server, int port) {
     int sockfd;
     struct sockaddr_in servAddr;
@@ -240,6 +268,11 @@ void sserve(Server *server, int port) {
                     // printf("Sending:\n%s\n", responseString);
                     write(clientSockfd, responseString, strlen(responseString));
                     free(responseString);
+
+                    if (response->bodyLocation != NULL) {  // Assuming chunked connection
+                        sendChunked(response, clientSockfd);
+                    }
+
                     free(response);
                 } else {
                     sendStatusResponse(INTERNAL_SERVER_ERROR, clientSockfd);

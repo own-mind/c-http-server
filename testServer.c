@@ -56,11 +56,11 @@ HttpResponse *_calculate(HttpRequest *rq, char **matches, size_t matchesLen) {
     return ok_text(resStr);
 }
 
-HttpResponse *_httpbin(HttpRequest *rq, char **matches, size_t matchesLen) {
+HttpResponse *_chunked(HttpRequest *rq, char **matches, size_t matchesLen) {
     int amount = atoi(matches[0]);
     printf("Requesting: %d\n", amount);
 
-    return ok_empty();
+    return ok_chunked(amount, "image/jpeg", "examples/cat.jpg");
 }
 
 int main() {
@@ -68,7 +68,7 @@ int main() {
 
     sget(s, "/", &_index);
     spost(s, "/calculate/", &_calculate);
-    sget(s, "/httpbin/stream/([[:digit:]]+)", &_httpbin);
+    sget(s, "/chunked/([[:digit:]]+)", &_chunked);
     sserve(s, 42069);
 
     freeServer(s);

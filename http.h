@@ -5,27 +5,27 @@
 #include "charStream.h"
 
 typedef enum {
-  GET, POST, DELETE, PUT, CONNECT, PATCH, TRACE, HEAD, OPTIONS
+    GET, POST, DELETE, PUT, CONNECT, PATCH, TRACE, HEAD, OPTIONS
 } RequestMethod;
 
 typedef struct {
-  char *key;
-  char *value;
+    char *key;
+    char *value;
 } Header;
 
 typedef struct {
-  Header *entries;
-  int length;
+    Header *entries;
+    int length;
 } Headers;
 
 typedef struct  {
-  RequestMethod method;
-  char *target;
-  char *httpVersion;
-  Headers headers;
+    RequestMethod method;
+    char *target;
+    char *httpVersion;
+    Headers headers;
 
-  char *body;
-  long bodySize;
+    char *body;
+    long bodySize;
 } HttpRequest;
 
 typedef enum {
@@ -103,17 +103,21 @@ typedef struct {
 
     char *body;
     int bodySize;
+    char *bodyLocation;  // Ideally I would make a writer here for bodies
+    int chunkSize;
 } HttpResponse;
 
 /**
  * Looks for value of a header with provided key, or null of not found.
  */
 char *getHeaderValue(Headers h, char *key);
+void addHeader(Headers *h, char *key, char *val);
 
 HttpResponse *ok_empty();
 HttpResponse *ok_text(char *text);
 HttpResponse *ok_file(char *type, char *path);
 HttpResponse *ok_body(char *type, char *body, int len);
+HttpResponse *ok_chunked(int chunkSize, char *type, char *path);
 HttpResponse *ok(Headers headers, char *type, char *body, int len);
 
 HttpResponse *badRequest();
