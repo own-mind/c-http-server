@@ -1,5 +1,5 @@
 CC      = gcc
-CFLAGS  = -Wall -Wextra
+CFLAGS  = -Wall -Wextra -Wno-unused-parameter
 
 SRCS    = server.c http.c charStream.c
 OBJS    = $(SRCS:.c=.o)

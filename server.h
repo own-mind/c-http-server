@@ -2,8 +2,10 @@
 #define __SERVER_H
 
 #include "http.h"
+#include <regex.h>
 
-typedef HttpResponse *(*RequestHandler)(HttpRequest* request);
+// IMPORTANT: if you are storing values from `matches` array, use strdup, as the array is being completely freed after handler
+typedef HttpResponse *(*RequestHandler)(HttpRequest* request, char **matches, size_t nmatch);
 struct Server;
 typedef struct Server Server;
 

@@ -43,7 +43,7 @@ char next(CharStream *stream) {
 
     if (stream->eof(stream->state)) {
         if (peeked == '\0') {
-            perror("Tried to get next while eof");
+            fprintf(stderr, "Tried to get next while eof\n");
             exit(1);
         }
 

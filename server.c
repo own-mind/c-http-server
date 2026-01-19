@@ -8,9 +8,9 @@
 #include "server.h"
 
 typedef struct {
-    RequestHandler handler;
-    char *path;
     RequestMethod method;
+    RequestHandler handler;
+    regex_t expression;
 } Route;
 
 struct Server {
@@ -23,31 +23,62 @@ Server *createServer() {
     return server;
 }
 
-void sget(Server *s, char *path, RequestHandler handler) {
-    sadd(s, path, handler, GET);
+void sget(Server *s, char *pattern, RequestHandler handler) {
+    sadd(s, pattern, handler, GET);
 }
 
-void spost(Server *s, char *path, RequestHandler handler) {
-    sadd(s, path, handler, POST);
+void spost(Server *s, char *pattern, RequestHandler handler) {
+    sadd(s, pattern, handler, POST);
 }
 
-void sadd(Server *s, char *path, RequestHandler handler, RequestMethod m) {
-    //TODO would be better to write a parser for path and a validator
-
+void sadd(Server *s, char *pattern, RequestHandler handler, RequestMethod m) {
     Route *route = calloc(1, sizeof(Route));
     route->handler = handler;
-    route->path = path;
     route->method = m;
+
+    int pn = strlen(pattern);
+    if(pattern[0] != '^' || pattern[pn - 1] != '&') {
+        char *start = pattern[0] == '^' ? "" : "^";
+        char *end = pattern[pn - 1] == '$' ? "" : "$";
+
+        char *new;
+        asprintf(&new, "%s%s%s", start, pattern, end);
+        pattern = new;
+    }
+
+    if (regcomp(&route->expression, pattern, REG_EXTENDED) != 0) {
+       fprintf(stderr, "Invalid pattern: %s\n", pattern); 
+       exit(1);
+    }
 
     s->routes = realloc(s->routes, ++s->routesLen * sizeof(Route));
     s->routes[s->routesLen - 1] = route;
 }
 
-Route *findRoute(Server *s, HttpRequest *rq) {
-    for (int i = 0; i < s->routesLen; i++) {
-        Route *route = s->routes[i];
+Route *findRoute(Server *s, HttpRequest *rq, char ***matchesOut) {
+    for (int r = 0; r < s->routesLen; r++) {
+        Route *route = s->routes[r];
+        if(rq->method != route->method) continue;
 
-        if(rq->method == route->method && !strcmp(route->path, rq->target)) {
+        regmatch_t *matches = malloc((route->expression.re_nsub + 1) * sizeof(regmatch_t));
+        *matchesOut = route->expression.re_nsub == 0 ? NULL : malloc(route->expression.re_nsub * sizeof(char*));
+
+        if (regexec(&route->expression, rq->target, route->expression.re_nsub + 1, matches, 0) == 0) {
+            for (size_t i = 0; i < route->expression.re_nsub; i++) {
+                regmatch_t match = matches[i + 1];
+                if (match.rm_so == -1) {
+                    (*matchesOut)[i] = NULL;
+                    continue;
+                }
+
+                int len = (int)(match.rm_eo - match.rm_so);
+                char *group = malloc(len + 1);
+                memcpy(group, rq->target + match.rm_so, len);
+                group[len] = '\0';
+
+                (*matchesOut)[i] = group;
+            }
+
             return route;
         }
     }
@@ -194,9 +225,15 @@ void sserve(Server *server, int port) {
         if (rq == NULL) {
             sendStatusResponse(errno > 0 ? (StatusCode) errno : BAD_REQUEST, clientSockfd);
         } else {
-            Route *route = findRoute(server, rq);
+            char **matches;
+            Route *route = findRoute(server, rq, &matches);
             if(route != NULL) {
-                HttpResponse *response = route->handler(rq);
+                HttpResponse *response = route->handler(rq, matches, route->expression.re_nsub);
+
+                for (size_t i = 0; i < route->expression.re_nsub; i++) {
+                    free(matches[i]);
+                }
+                free(matches);
 
                 if (response != NULL) {
                     char *responseString = compileResponse(response);
@@ -223,10 +260,14 @@ void sserve(Server *server, int port) {
     close(sockfd);
 }
 
+void freeRoute(Route *r) {
+    regfree(&r->expression);
+    free(r);
+}
+
 void freeServer(Server *s) {
     for (int i = 0; i < s->routesLen; i++) {
-        Route *r = s->routes[i];
-        free(r->path);
+        freeRoute(s->routes[i]);
     }
     free(s->routes);
     free(s);

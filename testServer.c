@@ -2,7 +2,7 @@
 #include <stdlib.h>
 #include "server.h"
 
-HttpResponse *_index(HttpRequest *rq) {
+HttpResponse *_index(HttpRequest *rq, char **ms, size_t n) {
     if (rq->bodySize > 0) {
         printf("Body: %s\n", rq->body);
     }
@@ -27,7 +27,7 @@ double extractNumber(int *index, char *s, int n) {
     return res;
 }
 
-HttpResponse *_calculate(HttpRequest *rq) {
+HttpResponse *_calculate(HttpRequest *rq, char **matches, size_t matchesLen) {
     if (rq->bodySize == 0) { printf("1\n"); return badRequest(); }
 
     int index = 0;
@@ -56,11 +56,19 @@ HttpResponse *_calculate(HttpRequest *rq) {
     return ok_text(resStr);
 }
 
+HttpResponse *_httpbin(HttpRequest *rq, char **matches, size_t matchesLen) {
+    int amount = atoi(matches[0]);
+    printf("Requesting: %d\n", amount);
+
+    return ok_empty();
+}
+
 int main() {
     Server *s = createServer();
 
     sget(s, "/", &_index);
     spost(s, "/calculate/", &_calculate);
+    sget(s, "/httpbin/stream/([[:digit:]]+)", &_httpbin);
     sserve(s, 42069);
 
     freeServer(s);

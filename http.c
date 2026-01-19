@@ -267,19 +267,16 @@ HttpRequest *parseHttpRequest(CharStream *stream) {
 }
 
 Headers createDefaultHeaders(int contentLength, char *contentType) {
-    int defaultSize = 1 + (contentLength > 0 ? 2 : 0);
+    int defaultSize = 3;
     Headers hs = { calloc(defaultSize, sizeof(Headers)), defaultSize };
 
     int i = 0;
     hs.entries[i++] = (Header) { strdup("Connection"), strdup("close") };
+    hs.entries[i++] = (Header) { strdup("Content-Type"), strdup(contentType != NULL ? contentType : "text/plain") };
 
-    if (contentLength > 0) {
-        hs.entries[i++] = (Header) { strdup("Content-Type"), strdup(contentType != NULL ? contentType : "text/plain") };
-
-        char buf[16];
-        sprintf(buf, "%d", contentLength);
-        hs.entries[i++] = (Header) { strdup("Content-Length"), strdup(buf) };
-    }
+    char buf[16];
+    sprintf(buf, "%d", contentLength);
+    hs.entries[i++] = (Header) { strdup("Content-Length"), strdup(buf) };
 
     return hs;
 }
