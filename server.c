@@ -5,7 +5,10 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+#include <signal.h>
 #include "server.h"
+
+volatile sig_atomic_t run_flag = 1;
 
 typedef struct {
     RequestMethod method;
@@ -161,7 +164,7 @@ char *statusMessage(StatusCode code) {
     }
 }
 
-char *compileResponse(HttpResponse *r, char **trailersString) {
+int compileResponse(HttpResponse *r, char **resultOut, char **trailersString) {
     // Declaring trailers
     if (r->trailers.length > 0) {
         *trailersString = malloc(1);
@@ -207,22 +210,24 @@ char *compileResponse(HttpResponse *r, char **trailersString) {
     asprintf(&result, "%s\r\n", old);
     free(old);
 
+    int rn = strlen(result);
     if (r->bodySize) {
-        int rn = strlen(result);
         result = realloc(result, rn + r->bodySize + 1);
         memcpy(result + rn, r->body, r->bodySize);
         result[rn + r->bodySize] = '\0';
     }
     
-    return result;
+    *resultOut = result;
+    return rn + r->bodySize;
 }
 
 void sendStatusResponse(StatusCode code, int clientSockfd) {
     HttpResponse *r = calloc(1, sizeof(HttpResponse));
     r->code = code;
+    char *rs;
     char *ignore;
-    char *rs = compileResponse(r, &ignore);
-    write(clientSockfd, rs, strlen(rs));
+    int rn = compileResponse(r, &rs, &ignore);
+    write(clientSockfd, rs, rn); 
     free(rs);
     free(r);
 }
@@ -242,7 +247,7 @@ void sendChunked(HttpResponse *response, int clientSockfd) {
 
     while(!feof(f)) {
         bytesRead = fread(buffer, 1, chunkSize, f);
-        
+
         cn = snprintf(chunkSizeHex, 32, "%x\r\n", bytesRead);
         write(clientSockfd, chunkSizeHex, cn);
         write(clientSockfd, buffer, bytesRead);
@@ -255,11 +260,17 @@ void sendChunked(HttpResponse *response, int clientSockfd) {
     fclose(f);
 }
 
+void sig_handler(int signum) {
+    if (signum == SIGINT || signum == SIGTERM) {
+        run_flag = 0;
+    }
+}
+
 void sserve(Server *server, int port) {
     int sockfd;
     struct sockaddr_in servAddr;
 
-    sockfd = socket(AF_INET, SOCK_STREAM, 0);
+    sockfd = socket(AF_INET, SOCK_STREAM | SOCK_CLOEXEC, 0);
     if (sockfd < 0) {
         perror("Unable to create socket");
         return;
@@ -275,10 +286,23 @@ void sserve(Server *server, int port) {
         return;
     }
 
-    while (1) {   //TODO make multi-threaded
+    struct sigaction sa = {0};
+    sa.sa_handler = sig_handler;
+    sigemptyset(&sa.sa_mask);
+    sa.sa_flags = 0;   // IMPORTANT: no SA_RESTART
+
+    sigaction(SIGTERM, &sa, NULL);
+    sigaction(SIGINT,  &sa, NULL);
+
+    while (run_flag) {   //TODO make multi-threaded
         struct sockaddr clientAddr;
         socklen_t clientAddrLen;
         int clientSockfd = accept(sockfd, (struct sockaddr *) &clientAddr, &clientAddrLen);
+
+        if (clientSockfd == -1) {
+            if (errno == EINTR) break;
+            continue;
+        }
 
         CharStream *stream = createSocketStream(clientSockfd);
         errno = 0;
@@ -298,10 +322,10 @@ void sserve(Server *server, int port) {
                 free(matches);
 
                 if (response != NULL) {
+                    char *responseString;
                     char *trailersString = NULL;
-                    char *responseString = compileResponse(response, &trailersString);
-                    // printf("Sending:\n%s\n", responseString);
-                    write(clientSockfd, responseString, strlen(responseString));
+                    int rn = compileResponse(response, &responseString, &trailersString);
+                    write(clientSockfd, responseString, rn);
                     free(responseString);
 
                     if (response->bodyLocation != NULL) {  // Assuming chunked connection
@@ -313,7 +337,9 @@ void sserve(Server *server, int port) {
                         free(trailersString);
                     }
 
-                    write(clientSockfd, "\r\n", 2);
+                    if (response->bodyLocation != NULL) {
+                        write(clientSockfd, "\r\n", 2);
+                    }
 
                     free(response);
                 } else {

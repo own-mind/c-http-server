@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include "server.h"
+#include "examples/qrcode/qrcode.h"
 
 HttpResponse *_index(HttpRequest *rq, char **ms, size_t n) {
     if (rq->bodySize > 0) {
@@ -65,12 +66,25 @@ HttpResponse *_chunked(HttpRequest *rq, char **matches, size_t matchesLen) {
     return r;
 }
 
+HttpResponse *_qrpage(HttpRequest *rq, char **matches, size_t matchesLen) {
+    return ok_file("text/html", "examples/qrcode/qr.html");
+}
+
+HttpResponse *_qrgen(HttpRequest *rq, char **matches, size_t matchesLen) {
+    QRCode *qr = generateQR(rq->body, rq->bodySize);
+    if (qr == NULL) return badRequest();
+
+    return ok_body("image/bmp", (char *) qr->data, qr->len);
+}
+
 int main() {
     Server *s = createServer();
 
     sget(s, "/", &_index);
     spost(s, "/calculate/", &_calculate);
     sget(s, "/chunked/([[:digit:]]+)", &_chunked);
+    spost(s, "/qrgen/", &_qrgen);
+    sget(s, "/qr/", &_qrpage);
     sserve(s, 42069);
 
     freeServer(s);

@@ -1,7 +1,7 @@
 CC      = gcc
 CFLAGS  = -g -o0  -fsanitize=address -Wall -Wextra -Wno-unused-parameter
 
-SRCS    = server.c http.c charStream.c
+SRCS    = server.c http.c charStream.c examples/qrcode/qrcode.c
 OBJS    = $(SRCS:.c=.o)
 
 server: $(OBJS) testServer.o

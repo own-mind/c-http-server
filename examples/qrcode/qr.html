@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>QR Code Generator</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            min-height: 100vh;
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            padding: 20px;
+        }
+
+        .container {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 40px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            width: 100%;
+            max-width: 500px;
+        }
+
+        h1 {
+            text-align: center;
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 30px;
+            font-size: 32px;
+            font-weight: 700;
+        }
+
+        .input-group {
+            margin-bottom: 20px;
+        }
+
+        label {
+            display: block;
+            color: #555;
+            font-size: 14px;
+            margin-bottom: 8px;
+            font-weight: 600;
+        }
+
+        textarea {
+            width: 100%;
+            padding: 15px;
+            border: 2px solid #e0e0e0;
+            border-radius: 12px;
+            font-size: 16px;
+            font-family: inherit;
+            resize: vertical;
+            min-height: 120px;
+            transition: all 0.3s;
+        }
+
+        textarea:focus {
+            outline: none;
+            border-color: #f093fb;
+            box-shadow: 0 0 0 3px rgba(240, 147, 251, 0.1);
+        }
+
+        button {
+            width: 100%;
+            padding: 16px;
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            color: white;
+            border: none;
+            border-radius: 12px;
+            font-size: 18px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 25px rgba(240, 147, 251, 0.4);
+        }
+
+        button:active {
+            transform: translateY(0);
+        }
+
+        button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .qr-display {
+            margin-top: 30px;
+            text-align: center;
+            min-height: 280px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .qr-image {
+            background: white;
+            padding: 20px;
+            border-radius: 16px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+            display: inline-block;
+        }
+
+        .qr-image img {
+            display: block;
+            width: 200px;
+            height: auto;
+        }
+
+        .placeholder {
+            color: #999;
+            font-size: 16px;
+            padding: 40px;
+            background: #f5f5f5;
+            border-radius: 16px;
+            border: 2px dashed #ddd;
+        }
+
+        .error {
+            color: #f5576c;
+            background: #fff0f0;
+            border: 2px solid #f5576c;
+            padding: 20px;
+            border-radius: 12px;
+            font-weight: 500;
+        }
+
+        .loading {
+            color: #f093fb;
+            font-size: 18px;
+            font-weight: 500;
+        }
+
+        .loading::after {
+            content: '...';
+            animation: dots 1.5s steps(4, end) infinite;
+        }
+
+        @keyframes dots {
+            0%, 20% { content: '.'; }
+            40% { content: '..'; }
+            60%, 100% { content: '...'; }
+        }
+
+        .download-btn {
+            margin-top: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 12px 24px;
+            width: auto;
+            display: inline-block;
+        }
+
+        .download-btn:hover {
+            box-shadow: 0 10px 25px rgba(102, 126, 234, 0.4);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>📱 QR Code Generator</h1>
+        
+        <div class="input-group">
+            <label for="textInput">Enter Text or URL</label>
+            <textarea 
+                id="textInput" 
+                placeholder="Enter any text, URL, or message to generate a QR code..."
+            >https://example.com</textarea>
+        </div>
+
+        <button onclick="generateQR()" id="generateBtn">Generate QR Code</button>
+
+        <div class="qr-display" id="qrDisplay">
+            <div class="placeholder">
+                Your QR code will appear here
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentImageUrl = null;
+
+        async function generateQR() {
+            const text = document.getElementById('textInput').value.trim();
+            const display = document.getElementById('qrDisplay');
+            const btn = document.getElementById('generateBtn');
+
+            if (!text) {
+                display.innerHTML = '<div class="error">Please enter some text to generate a QR code</div>';
+                return;
+            }
+
+            // Show loading state
+            btn.disabled = true;
+            display.innerHTML = '<div class="loading">Generating QR code</div>';
+
+            // Clean up previous image URL if exists
+            if (currentImageUrl) {
+                URL.revokeObjectURL(currentImageUrl);
+                currentImageUrl = null;
+            }
+
+            try {
+                const response = await fetch('/qrgen/', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'text/plain'
+                    },
+                    body: text
+                });
+
+                if (response.ok) {
+                    const blob = await response.blob();
+                    currentImageUrl = URL.createObjectURL(blob);
+                    
+                    display.innerHTML = `
+                        <div class="qr-image">
+                            <img src="${currentImageUrl}" alt="Generated QR Code">
+                        </div>
+                        <button class="download-btn" onclick="downloadQR()">
+                            💾 Download QR Code
+                        </button>
+                    `;
+                } else {
+                    display.innerHTML = `<div class="error">Error: ${response.status} ${response.statusText}</div>`;
+                }
+            } catch (error) {
+                display.innerHTML = `<div class="error">Error: ${error.message}</div>`;
+                console.error('QR generation error:', error);
+            } finally {
+                btn.disabled = false;
+            }
+        }
+
+        function downloadQR() {
+            if (!currentImageUrl) return;
+            
+            const a = document.createElement('a');
+            a.href = currentImageUrl;
+            a.download = 'qrcode.png';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+        }
+
+        // Allow Enter key with Ctrl/Cmd to generate
+        document.getElementById('textInput').addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+                e.preventDefault();
+                generateQR();
+            }
+        });
+
+        // Cleanup on page unload
+        window.addEventListener('beforeunload', () => {
+            if (currentImageUrl) {
+                URL.revokeObjectURL(currentImageUrl);
+            }
+        });
+    </script>
+</body>
+</html>

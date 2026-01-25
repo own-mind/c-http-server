@@ -343,8 +343,11 @@ HttpResponse *ok(Headers headers, char *type, char *body, int len) {
         free(headers.entries);
     }
 
-    r->body = strndup(body, len);
-    r->bodySize = len;
+    if (len > 0) {
+        r->body = malloc(len);
+        memcpy(r->body, body, len);
+        r->bodySize = len;
+    }
 
     return r;
 }
@@ -401,3 +404,4 @@ void freeHttpResponse(HttpResponse *r) {
 
     free(r);
 }
+
