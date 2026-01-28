@@ -270,7 +270,7 @@ void sserve(Server *server, int port) {
     int sockfd;
     struct sockaddr_in servAddr;
 
-    sockfd = socket(AF_INET, SOCK_STREAM | SOCK_CLOEXEC, 0);
+    sockfd = socket(AF_INET, SOCK_STREAM, 0);
     if (sockfd < 0) {
         perror("Unable to create socket");
         return;
