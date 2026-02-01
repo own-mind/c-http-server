@@ -3,6 +3,7 @@
 #include <string.h>
 #include "http.h"
 #include "charStream.h"
+#include "examples/qrcode/qrcode.h"
 
 void assertNotNull(void *p) {
     if (p == NULL) {
@@ -58,7 +59,7 @@ void assert(int condition, char *message) {
     }
 }
 
-int main() {
+void testHttpParsing() {
     int testCount = 0;
     CharStream *stream;
     HttpRequest *r;
@@ -140,6 +141,70 @@ int main() {
     assertInt(14, r->bodySize);
     freeHttpRequest(r);
     freeStream(stream);
+}
+
+void testQrModeSelection() {
+    int testCount = 0;
+    char *data;
+    ModeGroup result;
+
+    printf("Test #%d: Full numeric\n", ++testCount);
+    data = "12345";
+    result = selectMode(data, strlen(data));
+    assertInt(NUMERIC, result.mode);
+    assertInt(5, result.length);  
+
+    printf("Test #%d: Start numeric\n", ++testCount);
+    data = "1234567abcd";
+    result = selectMode(data, strlen(data));
+    assertInt(NUMERIC, result.mode);
+    assertInt(7, result.length);
+
+    printf("Test #%d: Full alphanum (no numbers)\n", ++testCount);
+    data = "abcdfe$+-";
+    result = selectMode(data, strlen(data));
+    assertInt(ALPHANUMERIC, result.mode);
+    assertInt(strlen(data), result.length);
+
+    printf("Test #%d: Full alphanum (inner numbers)\n", ++testCount);
+    data = "abcd123fe$+-";
+    result = selectMode(data, strlen(data));
+    assertInt(ALPHANUMERIC, result.mode);
+    assertInt(strlen(data), result.length);
+
+    printf("Test #%d: Start alphanum (before numbers)\n", ++testCount);
+    data = "abcd1234567890fe$+-";   // Here it is better to encode 1234567890 as NUMERIC
+    result = selectMode(data, strlen(data));
+    assertInt(ALPHANUMERIC, result.mode);
+    assertInt(4, result.length);
+
+    printf("Test #%d: All bytes\n", ++testCount);
+    data = "\1\2\3\4\5";
+    result = selectMode(data, strlen(data));
+    assertInt(BYTE, result.mode);
+    assertInt(5, result.length);
+
+    printf("Test #%d: Alpha before bytes\n", ++testCount);
+    data = "abc\ncdcddd";
+    result = selectMode(data, strlen(data));
+    assertInt(ALPHANUMERIC, result.mode);
+    assertInt(3, result.length);
+
+    printf("Test #%d: Alpha after bytes\n", ++testCount);
+    data = "\ncdcdddd";
+    result = selectMode(data, strlen(data));
+    assertInt(BYTE, result.mode);
+    assertInt(1, result.length);
+}
+
+int main() {
+    printf("---Testing HTTP Request Parsing---\n");
+    testHttpParsing();
+    printf("\n");
+
+    printf("---Testing QR-Code Encoding: Mode Selection---\n");
+    testQrModeSelection();
+    printf("\n");
 
     printf("\e[0;32mAll test passed!\e[0m\n");
 }

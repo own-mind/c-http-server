@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <string.h>
 #include "qrcode.h"
+#include "math.h"
 
 #define M_SIZE 25
 #define M_RATE 16
@@ -136,6 +137,116 @@ void packData(byte **matrix, byte *data, int n) {
     }
 }
 
+typedef struct {
+    int data;
+    int total;
+} ModeBitSize;
+
+ModeBitSize modeBitSize(Mode mode, int length) {
+    static const int header = 4;
+    int data; 
+
+    switch (mode) {
+    case NUMERIC:
+            // 10 bits for every 3 digits
+            data = (int)ceil(length / 3.0f) * 10;
+            return (ModeBitSize) { data, data + 10 + header };
+        case ALPHANUMERIC:
+            data = (int)ceil(length / 2.0f) * 11;
+            return (ModeBitSize) { data, data + 9 + header };
+        case BYTE:
+            data = length * 8;
+            return (ModeBitSize) { data, data + 8 + header };
+        case ECI: case KANJI: case STRUCTURED_APPEND:
+            perror("Not supported QR mode");
+            exit(1);
+    }
+}
+
+// Chooses best mode to encode the next data, accounting for mode setting cost
+ModeGroup selectMode(char *data, int n) {
+    Mode current = NUMERIC;  // Currently selected mode, CANNOT decrease in value 
+    int startNumeric = 0;    // Number of consecutive numeric chars from start
+    int numeric = 0;         // Number of consecutive numeric chars
+    int startAlpha = 0;      // Number of consecutive alphanumetic chars from start
+    int alpha = 0;           // Number of consecutive alphanumetic chars
+    int length = 0;          // Number of consecutive bytes going into current mode
+    
+
+    int nextSize, currentSize;
+    for (int i = 0; i < n; i++) {
+        char c = data[i];
+        length++;
+
+        if (c >= '0' && c <= '9') {
+            if (current == NUMERIC) startNumeric++;
+            if (current == NUMERIC || current == ALPHANUMERIC) startAlpha++;
+            numeric++;
+            alpha++;
+        } else if ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c==' '||c=='$'
+            ||c=='%'||c=='*'||c=='+'||c=='-'||c=='.'||c=='/'||c==':'
+        ){ 
+            if (current == ALPHANUMERIC || current == NUMERIC) startAlpha++;
+            alpha++;
+            numeric = 0;
+
+            if (current == NUMERIC) current = ALPHANUMERIC;
+        } else {
+            alpha = 0;
+            numeric = 0;
+            current = BYTE;
+        }
+
+        if (current != NUMERIC && numeric > 0) {
+            currentSize = modeBitSize(current, numeric).data;  // The amount of bits current encoding will take up
+            nextSize = modeBitSize(NUMERIC, numeric).total;  // Headers + data in bits
+            // TODO ideally it should also account for cost of declaration of the next header, after NUMERIC, if any
+
+            if (nextSize < currentSize) {
+                length -= numeric;
+                break;
+            }
+        }
+
+        if (current != ALPHANUMERIC && alpha > 0) {
+            currentSize = modeBitSize(current, alpha).data;  // The amount of bits current encoding will take up
+            nextSize = modeBitSize(ALPHANUMERIC, alpha).total;  // Headers + data in bits
+            // TODO ideally it should also account for cost of declaration of the next header, after ALPHANUMERIC, if any
+
+            if (nextSize < currentSize) {
+                length -= alpha;
+                break;
+            }
+        }
+    }
+
+    if (startNumeric > 0) {
+        currentSize = modeBitSize(current, startNumeric).total;
+        nextSize = modeBitSize(NUMERIC, startNumeric).total;
+        if (nextSize < currentSize) {
+            return (ModeGroup) { NUMERIC, startNumeric };
+        }
+    }
+
+    if (startAlpha > 0) {
+        currentSize = modeBitSize(current, startAlpha).total;
+        nextSize = modeBitSize(ALPHANUMERIC, startAlpha).total;
+        if (nextSize < currentSize) {
+            return (ModeGroup) { ALPHANUMERIC, startAlpha };
+        }
+    }
+
+    return (ModeGroup) { current, length };
+}
+
+int encodeData(byte *result, char *data, int n) {
+    int i = 0;
+    int mode = 0;
+    for (int d = 0; d < n; d++) {
+
+    }
+}
+
 QRCode *generateQR(char* data, int n) {
     byte **matrix = malloc(M_SIZE * sizeof(byte*));
     for (int i = 0; i < M_SIZE; i++) {
@@ -144,19 +255,23 @@ QRCode *generateQR(char* data, int n) {
 
     applyMaskS(matrix, STATIC_MASK);
 
+    QRCode *qr = NULL;
     byte *encoding = calloc(ENCODING_SIZE, sizeof(byte));
-    for (int i = 0; i < ENCODING_SIZE; i++) {
-        encoding[i] = 255u;
+
+    int success = encodeData(encoding, data, n);
+    if (success) { 
+        packData(matrix, encoding, ENCODING_SIZE);
+
+        byte **upscaled = upscale(matrix, M_SIZE, M_SIZE, M_RATE);
+        qr = toQRImage(upscaled, M_SIZE * M_RATE, M_SIZE * M_RATE);
+
+        for (int i = 0; i < M_SIZE * M_RATE; i++) free(upscaled[i]);
+        free(upscaled);
     }
-
-    packData(matrix, encoding, ENCODING_SIZE);
-    free(encoding);
-
-    byte **upscaled = upscale(matrix, M_SIZE, M_SIZE, M_RATE);
-    QRCode *qr = toQRImage(upscaled, M_SIZE * M_RATE, M_SIZE * M_RATE);
 
     for (int i = 0; i < M_SIZE; i++) free(matrix[i]);
     free(matrix);
+    free(encoding);
 
     return qr;
 }
