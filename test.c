@@ -197,6 +197,102 @@ void testQrModeSelection() {
     assertInt(1, result.length);
 }
 
+void assertBitBuffer(byte *bitBuffer, char *data) {
+    int n = strlen(data);
+    char *filtered = malloc(n + 1);
+    int fi = 0;
+    for (int i = 0; i < n; i++) {
+        if (data[i] == '0' || data[i] == '1') {
+            filtered[fi++] = data[i];
+        }
+    }
+    filtered[fi] = '\0';
+
+    n = strlen(filtered);
+    char *bitString = malloc(n + 1);
+
+    for (int i = 0; i < n; i++) {
+        if (bitBuffer[i]) bitString[i] = '1';
+        else              bitString[i] = '0';
+    }
+    bitString[n] = '\0';
+
+
+    assertString(filtered, bitString);
+    free(bitString);
+    free(filtered);
+}
+
+void testEncodings() {
+    int testCount = 0;
+    char *data;
+    byte *bitBuffer = calloc(100, sizeof(byte));
+    int bi;
+
+    printf("Test #%d: Numeric string '12345'\n", ++testCount);
+    bi = 0;
+    data = "12345";
+    encodeNumeric(bitBuffer, &bi, data, strlen(data));
+    assertBitBuffer(bitBuffer, "1101111000 1011010000");
+
+    printf("Test #%d: Numeric string '1'\n", ++testCount);
+    bi = 0;
+    data = "1";
+    encodeNumeric(bitBuffer, &bi, data, strlen(data));
+    assertBitBuffer(bitBuffer, "1000000000");
+
+    printf("Test #%d: Zeros (one triplet)\n", ++testCount);
+    bi = 0;
+    data = "000";
+    encodeNumeric(bitBuffer, &bi, data, strlen(data));
+    assertBitBuffer(bitBuffer, "0000000000");
+
+    printf("Test #%d: Zeros '00000'\n", ++testCount);
+    bi = 0;
+    data = "00000";
+    encodeNumeric(bitBuffer, &bi, data, strlen(data));
+    assertBitBuffer(bitBuffer, "00000000000000000000");
+
+    free(bitBuffer);
+}
+
+void assertArray(byte *expected, byte *actual, int n) {
+    for (int i = 0; i < n; i++) {
+        if (actual[i] != expected[i]) {
+            printf("\e[0;31mTest failed.\nActual:\n");
+
+            byte *arr = actual;
+            printf("{ %d",(int)arr[0]);
+            for (int i = 1; i < n; i++) {
+                printf(", %d", (int)arr[i]);
+            }
+
+            printf(" }\n\nExpected:\n");
+
+            arr = expected;
+            printf("{ %d", (int)arr[0]);
+            for (int i = 1; i < n; i++) {
+                printf(", %d", (int)arr[i]);
+            }
+
+            printf(" }\e[0m\n");
+            exit(1);
+        }
+    }
+}
+
+void testEC() {
+    int testCount = 0;
+    byte buffer[44];
+    int n;
+
+    printf("Test #%d: Basic example\n", ++testCount);
+    byte data1[] = { 32,91,11,120,209,114,220,77,67,64,236,17,236,17,236,17 };
+    byte result1[] = { 196,35,39,119,235,215,231,226,93,23 };
+    n = generateEC(data1, sizeof(data1), buffer, 10, EC_GEN_L);
+    assertArray(result1, buffer, n);
+}
+
 int main() {
     printf("---Testing HTTP Request Parsing---\n");
     testHttpParsing();
@@ -204,6 +300,14 @@ int main() {
 
     printf("---Testing QR-Code Encoding: Mode Selection---\n");
     testQrModeSelection();
+    printf("\n");
+
+    printf("---Testing QR-Code Encoding: Data Encodings---\n");
+    testEncodings();
+    printf("\n");
+
+    printf("---Testing QR-Code Encoding: Error Correction---\n");
+    testEC();
     printf("\n");
 
     printf("\e[0;32mAll test passed!\e[0m\n");

@@ -7,9 +7,39 @@
 #define M_SIZE 25
 #define M_RATE 16
 
-#define DATA_SIZE 28
-#define EC_SIZE 16
-#define ENCODING_SIZE DATA_SIZE + EC_SIZE
+#define DATA_SIZE_L 34
+#define DATA_SIZE_M 28
+#define DATA_SIZE_Q 22
+#define DATA_SIZE_H 16
+#define ENCODING_SIZE 44
+
+alpha EC_GEN_L[11] = { 0, 251, 67, 46, 61,118, 70, 64, 94, 32, 45 };
+alpha EC_GEN_M[17] = { 0, 120,104,107,109,102,161, 76,  3, 91,191,
+                           147,169,182,194,225,120 };
+alpha EC_GEN_Q[23] = { 0,210,171,247,242, 93,230, 14,109,221, 53,
+                           200, 74,  8,172, 98, 80,219,134,160,105,165,231 };
+alpha EC_GEN_H[29] = { 0,168,223,200,104,224,234,108,180,110,190,
+                           195,147,205, 27,232,201, 21, 43,245, 87,
+                            42,195,212,119,242, 37,  9,123 };
+
+byte DEC_TO_ALPH[256];
+byte ALPH_TO_DEC[256];
+
+__attribute__((constructor))
+void generateUtilArrays() {
+    unsigned int num;
+    for (int i = 1; i < 256; i++) {
+        num = 2 * num;
+        if (num > 255) {
+            num ^= 285u;
+        }
+
+        DEC_TO_ALPH[num] = (byte) i;
+        ALPH_TO_DEC[i] = num;
+    }
+
+    ALPH_TO_DEC[0] = 1;
+}
 
 QRCode *toQRImage(byte **matrix, int w, int h);
 byte **upscale(byte **matrix, int w, int h, int rate);
@@ -205,7 +235,7 @@ ModeGroup selectMode(char *data, int n) {
             if (nextSize < currentSize) {
                 length -= numeric;
                 break;
-            }
+    }
         }
 
         if (current != ALPHANUMERIC && alpha > 0) {
@@ -239,13 +269,139 @@ ModeGroup selectMode(char *data, int n) {
     return (ModeGroup) { current, length };
 }
 
-int encodeData(byte *result, char *data, int n) {
-    int i = 0;
-    int mode = 0;
-    for (int d = 0; d < n; d++) {
+int encodeNumeric(byte *bitBuffer, int *bi, char *data, int n) {
+    //TODO size check
+    unsigned int triplet = 0u;
+    int tripletDumped = 1;
+    int i;
+    for (i = 0; i < n; i++) {
+        if (i > 0 && i % 3 == 0) {
+            for (int j = 0; j < 10; j++) {
+                bitBuffer[(*bi)++] = triplet & 1u;
+                triplet >>= 1;
+                tripletDumped = 1;
+            }
+        } 
 
+        triplet *= 10u;
+        triplet += (unsigned int) (data[i] - '0');
+        tripletDumped = 0;
     }
+
+    if (!tripletDumped) {
+        for (int j = 0; j < 10; j++) {
+            bitBuffer[(*bi)++] = triplet & 1u;
+            triplet >>= 1;
+        }
+    }
+
+    return 1;
 }
+
+int encodeData(byte *result, int rn, char *data, int n) {
+    byte *bitBuffer = calloc(rn * 8, sizeof(byte));   // byte per bit array
+    int bi = 0;     // Bit buffer index
+    int idx = 0;    // Data index
+    while (idx < n) {
+        ModeGroup modeGroup = selectMode(data, n);
+
+            //TODO WRITE MODE !!!!!!
+        int success;
+        if (modeGroup.mode == NUMERIC) {
+            success = encodeNumeric(bitBuffer, &bi, data + idx, modeGroup.length);
+        } else {
+            return -1;
+        }
+
+        if (!success) {   // Typically means encoding function got too much data
+            free(bitBuffer);
+            return -1; 
+        }
+
+        idx += modeGroup.length;
+    }
+
+    // Flushing bit buffer to actual bit array
+    byte cb = 0u;
+    int size = 0;
+    for (int i = 0; i <= bi; i++) {
+        if (i > 0 && i % 8 == 0) {
+            result[size++] = cb;
+            cb = 0u;
+        }
+
+        cb = (cb << 1) | (bitBuffer[i] != 0);
+    }
+    if ((bi + 1) % 8 != 0) { 
+        result[size] = cb;
+        size++;
+    }
+
+    free(bitBuffer);
+    return size;
+}
+
+alpha ec_itoa(int value) {
+    return DEC_TO_ALPH[value];
+}
+
+int ec_atoi(alpha value) {
+    return ALPH_TO_DEC[value % 255];
+}
+
+int generateEC(byte *message, int mn, byte* writeTo, int ecwords, alpha *generator) {
+    int *poly = calloc(mn + ecwords, sizeof(int));
+    for (int s = 0; s < mn; s++) {
+        poly[s] = (int) message[s];
+    }
+
+    int gn = ecwords + 1; // Length of generator poly
+    for (int s = 0; s < mn; s++) {
+        alpha lead = ec_itoa(poly[s]);
+
+        for (int g = 0; g < gn; g++) {
+            poly[s + g] ^= ec_atoi(lead + generator[g]); 
+        }
+    }
+
+    for (int i = 0; i < ecwords; i++) {
+        writeTo[i] = (byte) poly[mn + i];
+    }
+
+    free(poly);
+    return ecwords;
+}
+
+void applyErrorCorrection(byte *encoding, int dataSize) {
+    int ecwords;
+    alpha *generator;
+    if (dataSize <= DATA_SIZE_H) {
+        ecwords = ENCODING_SIZE - DATA_SIZE_H;   
+        generator = EC_GEN_H;
+    } else if (dataSize <= DATA_SIZE_Q) {
+        ecwords = ENCODING_SIZE - DATA_SIZE_Q;   
+        generator = EC_GEN_Q;
+    } else if (dataSize <= DATA_SIZE_M) {
+        ecwords = ENCODING_SIZE - DATA_SIZE_M;   
+        generator = EC_GEN_M;
+    } else {
+        ecwords = ENCODING_SIZE - DATA_SIZE_L;   
+        generator = EC_GEN_L;
+    }
+
+    int pad = ENCODING_SIZE - ecwords - dataSize;
+    for (int i = 0; i < pad; i++) {
+        // if (i & 1) {
+            // encoding[dataSize + i] = 0x11;
+        // } else {
+            // encoding[dataSize + i] = 0xEC;
+        // }
+        encoding[dataSize + i] = 1;
+    }
+
+    dataSize += pad;
+    generateEC(encoding, dataSize, encoding + dataSize, ecwords, generator);
+} 
 
 QRCode *generateQR(char* data, int n) {
     byte **matrix = malloc(M_SIZE * sizeof(byte*));
@@ -258,8 +414,11 @@ QRCode *generateQR(char* data, int n) {
     QRCode *qr = NULL;
     byte *encoding = calloc(ENCODING_SIZE, sizeof(byte));
 
-    int success = encodeData(encoding, data, n);
-    if (success) { 
+    // Max data size up to L
+    int wordsWritten = encodeData(encoding, DATA_SIZE_L, data, n);
+    if (wordsWritten > 0) { 
+        applyErrorCorrection(encoding, wordsWritten);
+
         packData(matrix, encoding, ENCODING_SIZE);
 
         byte **upscaled = upscale(matrix, M_SIZE, M_SIZE, M_RATE);
