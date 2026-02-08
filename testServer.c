@@ -74,7 +74,9 @@ HttpResponse *_qrgen(HttpRequest *rq, char **matches, size_t matchesLen) {
     QRCode *qr = generateQR(rq->body, rq->bodySize);
     if (qr == NULL) return badRequest();
 
-    return ok_body("image/bmp", (char *) qr->data, qr->len);
+    HttpResponse* resp = ok_body("image/bmp", (char *) qr->data, qr->len);
+    freeQR(qr);
+    return resp;
 }
 
 int main() {

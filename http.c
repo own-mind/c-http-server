@@ -30,7 +30,7 @@ String collectUntilChar(CharStream *stream, char until) {
         result = realloc(result, ++n * sizeof(char));
         result[n - 1] = next(stream);
     }
-    
+
     result = realloc(result, (n + 1) * sizeof(char));
     result[n] = '\0';
     String s = { result, n };
@@ -75,6 +75,7 @@ int parseRequestLine(HttpRequest *result, CharStream *stream) {
     String httpVersion = collectUntilChar(stream, '\r');
 
     if(strncmp(httpVersion.chars, "HTTP/", 5)) {
+        free(httpVersion.chars);
         errno = BAD_REQUEST;
         return 0;
     }
@@ -132,6 +133,7 @@ int parseHeaders(HttpRequest *r, CharStream *stream) {
         int i = 0;
         while(!eof(stream) && peek(stream) != ':') {
             if(peek(stream) == ' ' || peek(stream) == '\n' || peek(stream) == '\r') {
+                free(header.key);
                 errno = BAD_REQUEST;  // Not allowing whitespaces before colon
                 return 0;
             }
@@ -148,7 +150,11 @@ int parseHeaders(HttpRequest *r, CharStream *stream) {
         header.key = realloc(header.key, ++i);
         header.key[i - 1] = '\0';
 
-        if(!validateHeader(header)) return 0;
+        if(!validateHeader(header)) { 
+            free(header.key);
+            return 0; 
+        }
+
 
         skip(stream); // Skip ':'
 
@@ -174,6 +180,7 @@ int parseHeaders(HttpRequest *r, CharStream *stream) {
         } 
 
         if (valueN == 0) {  // Value cannot be empty
+            free(header.value);
             errno = BAD_REQUEST;
             return 0;
         }
@@ -255,13 +262,22 @@ HttpRequest *parseHttpRequest(CharStream *stream) {
     HttpRequest *result = calloc(1, sizeof(HttpRequest));
 
     int success = parseRequestLine(result, stream);
-    if (!success) return NULL;
+    if (!success) {
+        freeHttpRequest(result);
+        return NULL;
+    }
 
     success = parseHeaders(result, stream);
-    if (!success) return NULL;
+    if (!success) {
+        freeHttpRequest(result);
+        return NULL;
+    }
 
     success = parseBody(result, stream);
-    if (!success) return NULL;
+    if (!success) {
+        freeHttpRequest(result);
+        return NULL;
+    }
 
     return result;
 }

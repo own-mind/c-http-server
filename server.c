@@ -197,7 +197,7 @@ int compileResponse(HttpResponse *r, char **resultOut, char **trailersString) {
 
     char *result;
     asprintf(&result, "HTTP/1.1 %d %s\r\n", r->code, statusMessage(r->code));
-    
+
     for (int i = 0; i < r->headers.length; i++) {
         Header *h = r->headers.entries + i;
 
@@ -270,7 +270,7 @@ void sserve(Server *server, int port) {
     int sockfd;
     struct sockaddr_in servAddr;
 
-    sockfd = socket(AF_INET, SOCK_STREAM, 0);
+    sockfd = socket(AF_INET, SOCK_STREAM | SOCK_CLOEXEC, 0);
     if (sockfd < 0) {
         perror("Unable to create socket");
         return;
@@ -341,7 +341,7 @@ void sserve(Server *server, int port) {
                         write(clientSockfd, "\r\n", 2);
                     }
 
-                    free(response);
+                    freeHttpResponse(response);
                 } else {
                     sendStatusResponse(INTERNAL_SERVER_ERROR, clientSockfd);
                 }

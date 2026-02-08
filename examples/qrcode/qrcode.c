@@ -27,7 +27,7 @@ byte ALPH_TO_DEC[256];
 
 __attribute__((constructor))
 void generateUtilArrays() {
-    unsigned int num;
+    unsigned int num = 1;
     for (int i = 1; i < 256; i++) {
         num = 2 * num;
         if (num > 255) {
@@ -191,6 +191,7 @@ ModeBitSize modeBitSize(Mode mode, int length) {
             perror("Not supported QR mode");
             exit(1);
     }
+    return (ModeBitSize) {0,0};
 }
 
 // Chooses best mode to encode the next data, accounting for mode setting cost
@@ -315,14 +316,14 @@ int encodeData(byte *result, int rn, char *data, int n) {
     while (idx < n) {
         ModeGroup modeGroup = selectMode(data, n);
 
-        for (int i = 0; i <= 1 << 3; i <<= 1) {
-            result[bi++] = modeGroup.mode & i;
+        for (int i = 1; i <= 1 << 3; i <<= 1) {
+            bitBuffer[bi++] = modeGroup.mode & i;
         }
 
         int success;
         if (modeGroup.mode == NUMERIC) {
-            for (int i = 0; i <= 1 << 9; i <<= 1) {
-                result[bi++] = modeGroup.length & i;
+            for (int i = 1; i <= 1 << 9; i <<= 1) {
+                bitBuffer[bi++] = modeGroup.length & i;
             }
             success = encodeNumeric(bitBuffer, &bi, data + idx, modeGroup.length);
         } else {
