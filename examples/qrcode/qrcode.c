@@ -269,12 +269,18 @@ ModeGroup selectMode(char *data, int n) {
     return (ModeGroup) { current, length };
 }
 
+int validateSize(int bi) {
+    return ceil(bi / 8) <= DATA_SIZE_L;
+}
+
 int encodeNumeric(byte *bitBuffer, int *bi, char *data, int n) {
     //TODO size check
     unsigned int triplet = 0u;
     int tripletDumped = 1;
     int i;
     for (i = 0; i < n; i++) {
+        if (!validateSize(*bi + 10)) return 0;
+
         if (i > 0 && i % 3 == 0) {
             for (int j = 0; j < 10; j++) {
                 bitBuffer[*bi + j] = triplet & 1u;
@@ -290,6 +296,8 @@ int encodeNumeric(byte *bitBuffer, int *bi, char *data, int n) {
     }
 
     if (!tripletDumped) {
+        if (!validateSize(*bi + 10)) return 0;
+
         for (int j = 0; j < 10; j++) {
             bitBuffer[*bi + j] = triplet & 1u;
             triplet >>= 1;
@@ -307,9 +315,15 @@ int encodeData(byte *result, int rn, char *data, int n) {
     while (idx < n) {
         ModeGroup modeGroup = selectMode(data, n);
 
-            //TODO WRITE MODE !!!!!!
+        for (int i = 0; i <= 1 << 3; i <<= 1) {
+            result[bi++] = modeGroup.mode & i;
+        }
+
         int success;
         if (modeGroup.mode == NUMERIC) {
+            for (int i = 0; i <= 1 << 9; i <<= 1) {
+                result[bi++] = modeGroup.length & i;
+            }
             success = encodeNumeric(bitBuffer, &bi, data + idx, modeGroup.length);
         } else {
             return -1;
@@ -397,12 +411,11 @@ void applyErrorCorrection(byte *encoding, int dataSize) {
 
     int pad = ENCODING_SIZE - ecwords - dataSize;
     for (int i = 0; i < pad; i++) {
-        // if (i & 1) {
-            // encoding[dataSize + i] = 0x11;
-        // } else {
-            // encoding[dataSize + i] = 0xEC;
-        // }
-        encoding[dataSize + i] = 1;
+        if (i & 1) {
+            encoding[dataSize + i] = 0x11;
+        } else {
+            encoding[dataSize + i] = 0xEC;
+        }
     }
 
     dataSize += pad;
