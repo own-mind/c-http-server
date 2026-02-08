@@ -180,11 +180,12 @@
             <label for="textInput">Enter Text or URL</label>
             <textarea 
                 id="textInput" 
+                oninput="generateQR()"
                 placeholder="Enter any text, URL, or message to generate a QR code..."
             >https://example.com</textarea>
         </div>
 
-        <button onclick="generateQR()" id="generateBtn">Generate QR Code</button>
+        <!-- <button onclick="generateQR()" id="generateBtn">Generate QR Code</button> -->
 
         <div class="qr-display" id="qrDisplay">
             <div class="placeholder">
@@ -199,7 +200,7 @@
         async function generateQR() {
             const text = document.getElementById('textInput').value.trim();
             const display = document.getElementById('qrDisplay');
-            const btn = document.getElementById('generateBtn');
+            <!-- const btn = document.getElementById('generateBtn'); -->
 
             if (!text) {
                 display.innerHTML = '<div class="error">Please enter some text to generate a QR code</div>';
@@ -207,8 +208,8 @@
             }
 
             // Show loading state
-            btn.disabled = true;
-            display.innerHTML = '<div class="loading">Generating QR code</div>';
+            <!-- btn.disabled = true; -->
+            <!-- display.innerHTML = '<div class="loading">Generating QR code</div>'; -->
 
             // Clean up previous image URL if exists
             if (currentImageUrl) {
@@ -244,7 +245,7 @@
                 display.innerHTML = `<div class="error">Error: ${error.message}</div>`;
                 console.error('QR generation error:', error);
             } finally {
-                btn.disabled = false;
+                <!-- btn.disabled = false; -->
             }
         }
 

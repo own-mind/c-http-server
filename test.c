@@ -237,6 +237,7 @@ void testEncodings() {
 
     printf("Test #%d: Numeric string '1'\n", ++testCount);
     bi = 0;
+    memset(bitBuffer, 1, 100);
     data = "1";
     encodeNumeric(bitBuffer, &bi, data, strlen(data));
     assertBitBuffer(bitBuffer, "1000000000");
@@ -252,6 +253,12 @@ void testEncodings() {
     data = "00000";
     encodeNumeric(bitBuffer, &bi, data, strlen(data));
     assertBitBuffer(bitBuffer, "00000000000000000000");
+
+    printf("Test #%d: Numeric string '511511511311'\n", ++testCount);
+    bi = 0;
+    data = "511511511311";
+    encodeNumeric(bitBuffer, &bi, data, strlen(data));
+    assertBitBuffer(bitBuffer, "1111111110 1111111110 1111111110 1110110010");
 
     free(bitBuffer);
 }

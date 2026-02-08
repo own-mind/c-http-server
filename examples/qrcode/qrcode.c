@@ -277,10 +277,11 @@ int encodeNumeric(byte *bitBuffer, int *bi, char *data, int n) {
     for (i = 0; i < n; i++) {
         if (i > 0 && i % 3 == 0) {
             for (int j = 0; j < 10; j++) {
-                bitBuffer[(*bi)++] = triplet & 1u;
+                bitBuffer[*bi + j] = triplet & 1u;
                 triplet >>= 1;
-                tripletDumped = 1;
             }
+            tripletDumped = 1;
+            *bi += 10;
         } 
 
         triplet *= 10u;
@@ -290,9 +291,10 @@ int encodeNumeric(byte *bitBuffer, int *bi, char *data, int n) {
 
     if (!tripletDumped) {
         for (int j = 0; j < 10; j++) {
-            bitBuffer[(*bi)++] = triplet & 1u;
+            bitBuffer[*bi + j] = triplet & 1u;
             triplet >>= 1;
         }
+        *bi += 10;
     }
 
     return 1;
@@ -323,18 +325,22 @@ int encodeData(byte *result, int rn, char *data, int n) {
 
     // Flushing bit buffer to actual bit array
     byte cb = 0u;
+    int cbi = 0;
     int size = 0;
-    for (int i = 0; i <= bi; i++) {
+    for (int i = 0; i < bi; i++) {
         if (i > 0 && i % 8 == 0) {
             result[size++] = cb;
             cb = 0u;
+            cbi = 0;
         }
 
-        cb = (cb << 1) | (bitBuffer[i] != 0);
+        cb = (cb >> 1) | (bitBuffer[i] != 0 ? 128u : 0u);
+        cbi++;
     }
-    if ((bi + 1) % 8 != 0) { 
-        result[size] = cb;
-        size++;
+
+    if (cbi > 0) { 
+        cb >>= 8 - cbi;
+        result[size++] = cb;
     }
 
     free(bitBuffer);
