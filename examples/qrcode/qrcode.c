@@ -7,6 +7,11 @@
 #define M_SIZE 25
 #define M_RATE 16
 
+#define MASK_N1 3
+#define MASK_N2 3
+#define MASK_N3 40
+#define MASK_N4 10
+
 #define DATA_SIZE_L 34
 #define DATA_SIZE_M 28
 #define DATA_SIZE_Q 22
@@ -275,7 +280,6 @@ int validateSize(int bi) {
 }
 
 int encodeNumeric(byte *bitBuffer, int *bi, char *data, int n) {
-    //TODO size check
     unsigned int triplet = 0u;
     int tripletDumped = 1;
     int i;
@@ -362,11 +366,11 @@ int encodeData(byte *result, int rn, char *data, int n) {
     return size;
 }
 
-alpha ec_itoa(int value) {
+static inline alpha ec_itoa(int value) {
     return DEC_TO_ALPH[value];
 }
 
-int ec_atoi(alpha value) {
+static inline int ec_atoi(alpha value) {
     return ALPH_TO_DEC[value % 255];
 }
 
@@ -423,6 +427,205 @@ void applyErrorCorrection(byte *encoding, int dataSize) {
     generateEC(encoding, dataSize, encoding + dataSize, ecwords, generator);
 } 
 
+byte **dupmat(byte **original) {
+    byte **matrix = malloc(M_SIZE * sizeof(byte*));
+    for (int i = 0; i < M_SIZE; i++) {
+        matrix[i] = malloc(M_SIZE * sizeof(byte));
+        memcpy(matrix[i], original[i], M_SIZE);
+    }
+
+    return matrix;
+}
+
+void freeMatrix(byte **matrix, int size) {
+    for (int i = 0; i < size; i++) free(matrix[i]);
+    free(matrix);
+}
+
+int scoreMask(byte** matrix) {
+    int score = 0;
+
+    // Scoring rows
+    byte b;
+    int consecutive;
+    for (int y = 0; y < M_SIZE; y++) {
+        consecutive = 1;
+        b = matrix[y][0];
+
+        for (int x = 1; x < M_SIZE; x++) {
+            if (matrix[y][x] == b) {
+                consecutive++;
+            } else {
+                if (consecutive >= 5) {
+                    score += MASK_N1 + consecutive;
+                }
+                consecutive = 1;
+            }
+
+            b = matrix[y][x];
+        }
+    }
+
+    // Scoring columns
+    for (int x = 0; x < M_SIZE; x++) {
+        consecutive = 1;
+        b = matrix[0][x];
+
+        for (int y = 1; y < M_SIZE; y++) {
+            if (matrix[y][x] == b) {
+                consecutive++;
+            } else {
+                if (consecutive >= 5) {
+                    score += MASK_N1 + consecutive;
+                }
+                consecutive = 1;
+            }
+
+            b = matrix[y][x];
+        }
+    }
+
+    // Scoring 2x2 blocks
+    for (int y = 0; y < M_SIZE - 1; y++) {
+        for (int x = 0; x < M_SIZE - 1; x++) {
+            b = matrix[y][x];
+            if (matrix[y + 1][x] == b && matrix[y][x + 1] == b && matrix[y + 1][x + 1] == b) {
+                score += MASK_N2;
+            }
+        }
+    }
+
+    // Scoring fake finder patterns
+    static const byte pattern[] = { 1,0,1,1,1,0,1 };
+    static const byte lightArea[] = { 0,0,0,0 };
+    // Rows
+    for (int y = 0; y < M_SIZE; y++) {
+        for (int x = 0; x < M_SIZE - 7; x++) {
+            int match = 1;
+            for (int i = 0; i < 7; i++) {
+                if (pattern[i] != matrix[y][x + i]) {
+                    match = 0;
+                    break;
+                }
+            }
+
+            if (!match) continue;
+
+            if (x + 7 + 4 < M_SIZE && !memcpy(matrix[y] + x + 7, lightArea, 4)){
+                score += MASK_N3;
+                printf("found ROW AFTER pattern at (%d; %d)\n", x, y);
+            }
+
+            if (x - 4 >= 0 && !memcpy(matrix[y] + x - 4, lightArea, 4)){
+                score += MASK_N3;
+                printf("found ROW BEFORE pattern at (%d; %d)\n", x, y);
+            }
+        }
+    }
+    // Columns
+    for (int x = 0; x < M_SIZE; x++) {
+        for (int y = 0; y < M_SIZE - 7; y++) {
+            int match = 1;
+            for (int i = 0; i < 7; i++) {
+                if (pattern[i] != matrix[y + i][x]) {
+                    match = 0;
+                    break;
+                }
+            }
+
+            if (!match) continue;
+
+            if (y + 7 + 4 < M_SIZE){
+                match = 1;
+                for (int i = 0; i < 4; i++) {
+                    if (matrix[y + 7 + i][x]) {
+                        match = 0;
+                        break;
+                    }
+                }
+
+                if (match) {
+                    score += MASK_N3;
+                }
+            }
+
+            if (y - 4 >= 0){
+                match = 1;
+                for (int i = 0; i < 4; i++) {
+                    if (matrix[y - 4 + i][x]) {
+                        match = 0;
+                        break;
+                    }
+                }
+
+                if (match) {
+                    score += MASK_N3;
+                }
+            }
+        }
+    }
+
+    // Scoring dark-light ratio
+    int darkCount = 0;
+    for (int y = 0; y < M_SIZE; y++) {
+        for (int x = 0; x < M_SIZE; x++) {
+            darkCount += matrix[y][x] != 0;
+        }
+    }
+    double ratio = darkCount / (double)(M_SIZE * M_SIZE);
+    int k = (int) (fabs(ratio - 0.5d) / 0.05d);
+    score += k * MASK_N4;
+
+    return score;
+}
+
+int applyDataMasking(byte **matrix) {
+    byte **masks[8];
+
+    for (int i = 0; i < 8; i++) {
+        masks[i] = dupmat(matrix);
+    }
+
+    for (int y = 0; y < M_SIZE; y++) {
+        for (int x = 0; x < M_SIZE; x++) {
+            if(!DATA_MASK[y][x]) continue;
+
+            masks[0][y][x] ^= (y + x) % 2 == 0;
+            masks[1][y][x] ^= y % 2 == 0;
+            masks[2][y][x] ^= x % 3 == 0;
+            masks[3][y][x] ^= (y + x) % 3 == 0;
+            masks[4][y][x] ^= (y / 2 + x / 3) % 2 == 0;
+            masks[5][y][x] ^= (y * x) % 2 + (y * x) % 3 == 0;
+            masks[6][y][x] ^= ((y * x) % 2 + (y * x) % 3) % 2 == 0;
+            masks[7][y][x] ^= ((y + x) % 2 + (y * x) % 3) % 2 == 0;
+
+        }
+    }
+
+    int chosen = 0;
+    int minScore = scoreMask(masks[0]);  // Choosing the one with lowest score (penalty)
+
+    for (int i = 1; i < 8; i++) {
+        int score = scoreMask(masks[i]);
+        if (score < minScore) {
+            chosen = i;
+            minScore = score;
+        }
+    }
+
+    for (int y = 0; y < M_SIZE; y++) {
+        for (int x = 0; x < M_SIZE; x++) {
+            matrix[y][x] = masks[chosen][y][x];
+        }
+    }
+
+    for (int i = 0; i < 8; i++) {
+        free(masks[i]);
+    }
+
+    return chosen;
+}
+
 QRCode *generateQR(char* data, int n) {
     byte **matrix = malloc(M_SIZE * sizeof(byte*));
     for (int i = 0; i < M_SIZE; i++) {
@@ -440,16 +643,18 @@ QRCode *generateQR(char* data, int n) {
         applyErrorCorrection(encoding, wordsWritten);
 
         packData(matrix, encoding, ENCODING_SIZE);
+        int selected = applyDataMasking(matrix);
+        printf("selected = %d\n", selected);
+
+        //TODO write format bits
 
         byte **upscaled = upscale(matrix, M_SIZE, M_SIZE, M_RATE);
         qr = toQRImage(upscaled, M_SIZE * M_RATE, M_SIZE * M_RATE);
 
-        for (int i = 0; i < M_SIZE * M_RATE; i++) free(upscaled[i]);
-        free(upscaled);
+        freeMatrix(upscaled, M_SIZE * M_RATE);
     }
 
-    for (int i = 0; i < M_SIZE; i++) free(matrix[i]);
-    free(matrix);
+    freeMatrix(matrix, M_SIZE);
     free(encoding);
 
     return qr;
