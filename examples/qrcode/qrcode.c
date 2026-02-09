@@ -67,7 +67,7 @@ byte STATIC_MASK[M_SIZE][M_SIZE] = {
     { 0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0 },
     { 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0 },
     { 0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,1,1,1,1,1,0,0,0,0 },
-    { 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,1,0,0,0,0 },
+    { 0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,1,0,0,0,1,0,0,0,0 },
     { 1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,1,0,1,0,1,0,0,0,0 },
     { 1,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,1,0,0,0,1,0,0,0,0 },
     { 1,0,1,1,1,0,1,0,0,0,0,0,0,0,0,0,1,1,1,1,1,0,0,0,0 },
@@ -105,6 +105,34 @@ byte DATA_MASK[M_SIZE][M_SIZE] = {
     { 0,0,0,0,0,0,0,0,0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1 },
 };
 
+byte FORMATTING_MASK[M_SIZE][M_SIZE] = {
+    { 00,00,00,00,00,00,00,00,1 ,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00},
+    { 00,00,00,00,00,00,00,00,2 ,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00},
+    { 00,00,00,00,00,00,00,00,3 ,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00},
+    { 00,00,00,00,00,00,00,00,4 ,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00},
+    { 00,00,00,00,00,00,00,00,5 ,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00},
+    { 00,00,00,00,00,00,00,00,6 ,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00},
+    { 00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00},
+    { 00,00,00,00,00,00,00,00,7 ,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00},
+    { 15,14,13,12,11,10,00,9 ,8 ,00,00,00,00,00,00,00,00,8 ,7 ,6 ,5 ,4 ,3 ,2 ,1 },
+    { 00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00},
+    { 00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00},
+    { 00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00},
+    { 00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00},
+    { 00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00},
+    { 00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00},
+    { 00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00},
+    { 00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00},
+    { 00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00},
+    { 00,00,00,00,00,00,00,00,9 ,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00},
+    { 00,00,00,00,00,00,00,00,10,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00},
+    { 00,00,00,00,00,00,00,00,11,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00},
+    { 00,00,00,00,00,00,00,00,12,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00},
+    { 00,00,00,00,00,00,00,00,13,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00},
+    { 00,00,00,00,00,00,00,00,14,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00},
+    { 00,00,00,00,00,00,00,00,15,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00},
+};
+
 void applyMaskS(byte **matrix, byte mask[][M_SIZE]) {
     for (int y = 0; y < M_SIZE; y++) {
         for (int x = 0; x < M_SIZE; x++) {
@@ -133,8 +161,7 @@ void packData(byte **matrix, byte *data, int n) {
         byte word = data[i];
 
         for (int j = 0; j < 8; j++) {   //TODO Maybe has to be reversed bit order
-            int bit = word & 1u;
-            word >>= 1;
+            int bit = (word >> j) & 1u;
 
             if (bit) matrix[py][px] = 1u;
 
@@ -276,7 +303,7 @@ ModeGroup selectMode(char *data, int n) {
 }
 
 int validateSize(int bi) {
-    return ceil(bi / 8) <= DATA_SIZE_L;
+    return ceil(bi / 8.0f) <= DATA_SIZE_L;
 }
 
 int encodeNumeric(byte *bitBuffer, int *bi, char *data, int n) {
@@ -318,17 +345,16 @@ int encodeData(byte *result, int rn, char *data, int n) {
     int bi = 0;     // Bit buffer index
     int idx = 0;    // Data index
     while (idx < n) {
-        ModeGroup modeGroup = selectMode(data, n);
+        ModeGroup modeGroup = selectMode(data + idx, n - idx);
 
-        for (int i = 1; i <= 1 << 3; i <<= 1) {
-            bitBuffer[bi++] = modeGroup.mode & i;
-        }
+        for (int b = 3; b >= 0; --b)
+            bitBuffer[bi++] = (modeGroup.mode >> b) & 1;
 
         int success;
         if (modeGroup.mode == NUMERIC) {
-            for (int i = 1; i <= 1 << 9; i <<= 1) {
-                bitBuffer[bi++] = modeGroup.length & i;
-            }
+            for (int b = 8; b >= 0; --b)
+                bitBuffer[bi++] = (modeGroup.length >> b) & 1;
+
             success = encodeNumeric(bitBuffer, &bi, data + idx, modeGroup.length);
         } else {
             return -1;
@@ -382,6 +408,7 @@ int generateEC(byte *message, int mn, byte* writeTo, int ecwords, alpha *generat
 
     int gn = ecwords + 1; // Length of generator poly
     for (int s = 0; s < mn; s++) {
+        if (poly[s] == 0) continue;
         alpha lead = ec_itoa(poly[s]);
 
         for (int g = 0; g < gn; g++) {
@@ -397,20 +424,25 @@ int generateEC(byte *message, int mn, byte* writeTo, int ecwords, alpha *generat
     return ecwords;
 }
 
-void applyErrorCorrection(byte *encoding, int dataSize) {
+int applyErrorCorrection(byte *encoding, int dataSize) {
     int ecwords;
+    int level;
     alpha *generator;
     if (dataSize <= DATA_SIZE_H) {
-        ecwords = ENCODING_SIZE - DATA_SIZE_H;   
+        ecwords = ENCODING_SIZE - DATA_SIZE_H;
+        level = 2;
         generator = EC_GEN_H;
     } else if (dataSize <= DATA_SIZE_Q) {
-        ecwords = ENCODING_SIZE - DATA_SIZE_Q;   
+        ecwords = ENCODING_SIZE - DATA_SIZE_Q;
+        level = 3;
         generator = EC_GEN_Q;
     } else if (dataSize <= DATA_SIZE_M) {
-        ecwords = ENCODING_SIZE - DATA_SIZE_M;   
+        ecwords = ENCODING_SIZE - DATA_SIZE_M;
+        level = 0;
         generator = EC_GEN_M;
     } else {
-        ecwords = ENCODING_SIZE - DATA_SIZE_L;   
+        ecwords = ENCODING_SIZE - DATA_SIZE_L;
+        level = 1;
         generator = EC_GEN_L;
     }
 
@@ -425,6 +457,8 @@ void applyErrorCorrection(byte *encoding, int dataSize) {
 
     dataSize += pad;
     generateEC(encoding, dataSize, encoding + dataSize, ecwords, generator);
+
+    return level;
 } 
 
 byte **dupmat(byte **original) {
@@ -511,14 +545,12 @@ int scoreMask(byte** matrix) {
 
             if (!match) continue;
 
-            if (x + 7 + 4 < M_SIZE && !memcpy(matrix[y] + x + 7, lightArea, 4)){
+            if (x + 7 + 4 < M_SIZE && !memcmp(matrix[y] + x + 7, lightArea, 4)){
                 score += MASK_N3;
-                printf("found ROW AFTER pattern at (%d; %d)\n", x, y);
             }
 
-            if (x - 4 >= 0 && !memcpy(matrix[y] + x - 4, lightArea, 4)){
+            if (x - 4 >= 0 && !memcmp(matrix[y] + x - 4, lightArea, 4)){
                 score += MASK_N3;
-                printf("found ROW BEFORE pattern at (%d; %d)\n", x, y);
             }
         }
     }
@@ -598,7 +630,6 @@ int applyDataMasking(byte **matrix) {
             masks[5][y][x] ^= (y * x) % 2 + (y * x) % 3 == 0;
             masks[6][y][x] ^= ((y * x) % 2 + (y * x) % 3) % 2 == 0;
             masks[7][y][x] ^= ((y + x) % 2 + (y * x) % 3) % 2 == 0;
-
         }
     }
 
@@ -626,6 +657,48 @@ int applyDataMasking(byte **matrix) {
     return chosen;
 }
 
+void writeFormating(byte **matrix, int ecLevel, int dataMask) {
+    byte bitmap[15];
+
+    bitmap[0] = (ecLevel >> 1) & 1;
+    bitmap[1] = (ecLevel >> 0) & 1;
+
+    bitmap[2] = (dataMask >> 2) & 1;
+    bitmap[3] = (dataMask >> 1) & 1;
+    bitmap[4] = (dataMask >> 0) & 1;
+
+    //Error correction
+    static const byte gen[11] = { 1, 0, 1, 0, 0, 1, 1, 0, 1, 1, 1 };
+    byte ecpoly[15];
+    for (int i = 0; i < 15; i++) {
+        ecpoly[i] = i < 5 ? bitmap[i] : 0;
+    }
+
+    for (int i = 0; i < 5; i++) {
+        if(ecpoly[i] == 0) continue;
+
+        for (int g = 0; g < 11; g++) {
+            ecpoly[i + g] ^= gen[g];
+        }
+    }
+
+    memcpy(bitmap + 5, ecpoly + 5, 10);
+
+    // Masking
+    for (int i = 0; i < 15; i++) {
+        bitmap[i] ^= 21522 & (16384 >> i);
+    }
+
+    // Writing to matrix
+    for (int y = 0; y < M_SIZE; y++) {
+        for (int x = 0; x < M_SIZE; x++) {
+            if (FORMATTING_MASK[y][x] == 0) continue;
+
+            matrix[y][x] = bitmap[FORMATTING_MASK[y][x] - 1];
+        }
+    }
+}
+
 QRCode *generateQR(char* data, int n) {
     byte **matrix = malloc(M_SIZE * sizeof(byte*));
     for (int i = 0; i < M_SIZE; i++) {
@@ -640,13 +713,13 @@ QRCode *generateQR(char* data, int n) {
     // Max data size up to L
     int wordsWritten = encodeData(encoding, DATA_SIZE_L, data, n);
     if (wordsWritten > 0) { 
-        applyErrorCorrection(encoding, wordsWritten);
+        int ecLevel = applyErrorCorrection(encoding, wordsWritten);
 
         packData(matrix, encoding, ENCODING_SIZE);
-        int selected = applyDataMasking(matrix);
-        printf("selected = %d\n", selected);
 
-        //TODO write format bits
+        int dataMask = applyDataMasking(matrix);
+
+        writeFormating(matrix, ecLevel, dataMask);
 
         byte **upscaled = upscale(matrix, M_SIZE, M_SIZE, M_RATE);
         qr = toQRImage(upscaled, M_SIZE * M_RATE, M_SIZE * M_RATE);
