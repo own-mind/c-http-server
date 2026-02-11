@@ -197,7 +197,7 @@ void testQrModeSelection() {
     assertInt(1, result.length);
 }
 
-void assertBitBuffer(byte *bitBuffer, char *data) {
+void assertBitBuffer(byte *bitBuffer, int bn, char *data) {
     int n = strlen(data);
     char *filtered = malloc(n + 1);
     int fi = 0;
@@ -209,13 +209,13 @@ void assertBitBuffer(byte *bitBuffer, char *data) {
     filtered[fi] = '\0';
 
     n = strlen(filtered);
-    char *bitString = malloc(n + 1);
+    char *bitString = malloc(bn + 1);
 
-    for (int i = 0; i < n; i++) {
+    for (int i = 0; i < bn; i++) {
         if (bitBuffer[i]) bitString[i] = '1';
         else              bitString[i] = '0';
     }
-    bitString[n] = '\0';
+    bitString[bn] = '\0';
 
 
     assertString(filtered, bitString);
@@ -233,32 +233,44 @@ void testEncodings() {
     bi = 0;
     data = "12345";
     encodeNumeric(bitBuffer, &bi, data, strlen(data));
-    assertBitBuffer(bitBuffer, "1101111000 1011010000");
+    assertBitBuffer(bitBuffer, bi, "0001111011 0101101");
 
     printf("Test #%d: Numeric string '1'\n", ++testCount);
     bi = 0;
     memset(bitBuffer, 1, 100);
     data = "1";
     encodeNumeric(bitBuffer, &bi, data, strlen(data));
-    assertBitBuffer(bitBuffer, "1000000000");
+    assertBitBuffer(bitBuffer, bi, "0001");
 
-    printf("Test #%d: Zeros (one triplet)\n", ++testCount);
+    printf("Test #%d: Numeric string '00'\n", ++testCount);
+    bi = 0;
+    data = "00";
+    encodeNumeric(bitBuffer, &bi, data, strlen(data));
+    assertBitBuffer(bitBuffer, bi, "0000000");
+    printf("Test #%d: Numeric string '000'\n", ++testCount);
+
     bi = 0;
     data = "000";
     encodeNumeric(bitBuffer, &bi, data, strlen(data));
-    assertBitBuffer(bitBuffer, "0000000000");
+    assertBitBuffer(bitBuffer, bi, "0000000000");
 
-    printf("Test #%d: Zeros '00000'\n", ++testCount);
+    printf("Test #%d: Numeric string '00000'\n", ++testCount);
     bi = 0;
     data = "00000";
     encodeNumeric(bitBuffer, &bi, data, strlen(data));
-    assertBitBuffer(bitBuffer, "00000000000000000000");
+    assertBitBuffer(bitBuffer, bi, "0000000000 0000000");
 
     printf("Test #%d: Numeric string '511511511311'\n", ++testCount);
     bi = 0;
     data = "511511511311";
     encodeNumeric(bitBuffer, &bi, data, strlen(data));
-    assertBitBuffer(bitBuffer, "1111111110 1111111110 1111111110 1110110010");
+    assertBitBuffer(bitBuffer, bi, "0111111111 0111111111 0111111111 0100110111");
+
+    printf("Test #%d: Numeric string '01234567'\n", ++testCount);
+    bi = 0;
+    data = "01234567";
+    encodeNumeric(bitBuffer, &bi, data, strlen(data));
+    assertBitBuffer(bitBuffer, bi, "0000001100 0101011001 1000011");
 
     free(bitBuffer);
 }
@@ -300,6 +312,78 @@ void testEC() {
     assertArray(result1, buffer, n);
 }
 
+void testDataPack() {
+    int testCount = 0;
+    byte **matrix = malloc(25 * sizeof(byte*));
+    for (int y = 0; y < 25; y++) {
+        matrix[y] = calloc(25, sizeof(byte));
+    }
+
+    printf("Test #%d: Data Pack\n", ++testCount);
+    byte data[44];
+    for (int i = 0; i < 44; i++) data[i] = i + 1;
+
+    byte result[25][25] = {
+        { 0,0,0,0,0,0,0,0,0,0,1,1,1,0,1,1,0,0,0,0,0,0,0,0,0 },
+        { 0,0,0,0,0,0,0,0,0,1,0,1,1,0,0,0,1,0,0,0,0,0,0,0,0 },
+        { 0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0 },
+        { 0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0 },
+        { 0,0,0,0,0,0,0,0,0,0,0,1,1,0,0,1,0,0,0,0,0,0,0,0,0 },
+        { 0,0,0,0,0,0,0,0,0,1,0,1,1,0,0,0,1,0,0,0,0,0,0,0,0 },
+        { 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0 },
+        { 0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0 },
+        { 0,0,0,0,0,0,0,0,0,0,0,0,1,0,1,0,1,0,0,0,0,0,0,0,0 },
+        { 0,1,1,0,0,1,0,1,1,0,1,0,1,0,1,0,0,1,1,0,1,0,0,0,0 },
+        { 1,0,1,0,1,0,0,0,0,1,0,1,1,0,0,0,1,0,0,0,0,0,0,1,0 },
+        { 1,0,1,0,1,0,0,1,0,0,0,0,0,0,1,0,0,0,0,0,0,1,0,0,0 },
+        { 0,1,0,0,0,0,0,0,0,1,0,0,0,1,1,0,0,1,1,0,1,1,0,0,0 },
+        { 0,0,1,0,0,0,0,1,1,0,0,0,1,0,0,0,0,0,0,0,1,0,0,1,1 },
+        { 0,0,1,0,1,0,0,0,0,1,0,1,1,0,0,0,1,0,0,0,0,0,0,0,0 },
+        { 0,0,1,0,1,0,0,1,0,0,0,0,0,0,1,0,0,0,0,0,0,1,0,0,0 },
+        { 0,0,0,1,0,0,0,0,1,1,0,0,1,1,1,0,0,0,0,0,0,0,1,0,0 },
+        { 0,0,0,0,0,0,0,0,0,0,1,1,0,0,1,1,0,0,0,0,0,0,0,0,1 },
+        { 0,0,0,0,0,0,0,0,0,1,0,1,1,0,0,1,0,0,0,0,0,0,0,0,0 },
+        { 0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,0,0,0,0,0,1,0,0,0 },
+        { 0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,1,0,0,0,0,0,1,1,0,0 },
+        { 0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,1,1,1,0,0,0,1,0 },
+        { 0,0,0,0,0,0,0,0,0,1,0,1,1,0,0,0,0,1,0,0,1,0,0,0,0 },
+        { 0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,0,1,0,0,0,0,0,1,0,0 },
+        { 0,0,0,0,0,0,0,0,0,0,1,0,1,0,0,1,1,0,0,0,0,0,0,0,0 },
+    };
+
+    packData(matrix, data, 44);
+
+    int match = 1;
+    for (int y = 0; y < 25; y++) {
+        for (int x = 0; x < 25; x++) {
+            if (matrix[y][x] != result[y][x]) {
+                match = 0;
+                break;
+            }
+        }
+    }
+
+    if (!match) {
+        printf("\e[0;31mTest failed. Displaying matrix diff:\e[0m\n");
+        for (int y = 0; y < 25; y++) {
+            for (int x = 0; x < 25; x++) {
+                char c = matrix[y][x] ? '#' : 'O';
+                if (matrix[y][x] != result[y][x]) {
+                    printf("\e[0;31m%c\e[0m ", c);
+                } else {
+                    printf("%c ", c);
+                }
+            }
+            printf("\n");
+        }
+
+        freeMatrix(matrix, 25);
+        exit(1);
+    }
+
+    freeMatrix(matrix, 25);
+}
+
 int main() {
     printf("---Testing HTTP Request Parsing---\n");
     testHttpParsing();
@@ -315,6 +399,10 @@ int main() {
 
     printf("---Testing QR-Code Encoding: Error Correction---\n");
     testEC();
+    printf("\n");
+
+    printf("---Testing QR-Code Encoding: Test Data Packing---\n");
+    testDataPack();
     printf("\n");
 
     printf("\e[0;32mAll test passed!\e[0m\n");

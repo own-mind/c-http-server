@@ -160,7 +160,7 @@ void packData(byte **matrix, byte *data, int n) {
     for (int i = 0; i < n; i++) {
         byte word = data[i];
 
-        for (int j = 0; j < 8; j++) {   //TODO Maybe has to be reversed bit order
+        for (int j = 7; j >= 0; j--) {   //TODO Maybe has to be reversed bit order
             int bit = (word >> j) & 1u;
 
             if (bit) matrix[py][px] = 1u;
@@ -234,7 +234,6 @@ ModeGroup selectMode(char *data, int n) {
     int startAlpha = 0;      // Number of consecutive alphanumetic chars from start
     int alpha = 0;           // Number of consecutive alphanumetic chars
     int length = 0;          // Number of consecutive bytes going into current mode
-    
 
     int nextSize, currentSize;
     for (int i = 0; i < n; i++) {
@@ -314,13 +313,12 @@ int encodeNumeric(byte *bitBuffer, int *bi, char *data, int n) {
         if (!validateSize(*bi + 10)) return 0;
 
         if (i > 0 && i % 3 == 0) {
-            for (int j = 0; j < 10; j++) {
-                bitBuffer[*bi + j] = triplet & 1u;
-                triplet >>= 1;
+            for (int j = 9; j >= 0; j--) {
+                bitBuffer[(*bi)++] = (triplet >> j) & 1;
             }
+            triplet = 0;
             tripletDumped = 1;
-            *bi += 10;
-        } 
+        }
 
         triplet *= 10u;
         triplet += (unsigned int) (data[i] - '0');
@@ -330,11 +328,14 @@ int encodeNumeric(byte *bitBuffer, int *bi, char *data, int n) {
     if (!tripletDumped) {
         if (!validateSize(*bi + 10)) return 0;
 
-        for (int j = 0; j < 10; j++) {
-            bitBuffer[*bi + j] = triplet & 1u;
-            triplet >>= 1;
+        // Remaining numbers should be flushed corresponding to their size
+        int j = n % 3 == 1 ? 3
+            : n % 3 == 2 ? 6
+            : 9;
+
+        for (; j >= 0; j--) {
+            bitBuffer[(*bi)++] = (triplet >> j) & 1;
         }
-        *bi += 10;
     }
 
     return 1;
@@ -347,13 +348,15 @@ int encodeData(byte *result, int rn, char *data, int n) {
     while (idx < n) {
         ModeGroup modeGroup = selectMode(data + idx, n - idx);
 
-        for (int b = 3; b >= 0; --b)
+        for (int b = 3; b >= 0; --b) {
             bitBuffer[bi++] = (modeGroup.mode >> b) & 1;
+        }
 
         int success;
         if (modeGroup.mode == NUMERIC) {
-            for (int b = 8; b >= 0; --b)
+            for (int b = 9; b >= 0; --b) {
                 bitBuffer[bi++] = (modeGroup.length >> b) & 1;
+            }
 
             success = encodeNumeric(bitBuffer, &bi, data + idx, modeGroup.length);
         } else {
@@ -368,23 +371,25 @@ int encodeData(byte *result, int rn, char *data, int n) {
         idx += modeGroup.length;
     }
 
-    // Flushing bit buffer to actual bit array
-    byte cb = 0u;
-    int cbi = 0;
-    int size = 0;
-    for (int i = 0; i < bi; i++) {
-        if (i > 0 && i % 8 == 0) {
-            result[size++] = cb;
-            cb = 0u;
-            cbi = 0;
-        }
-
-        cb = (cb >> 1) | (bitBuffer[i] != 0 ? 128u : 0u);
-        cbi++;
+    int terminatorBits = (int) fmin(DATA_SIZE_L * 8 - bi, 4);
+    for (int i = 0; i < terminatorBits; i++) {
+        bitBuffer[bi++] = 0;
     }
 
-    if (cbi > 0) { 
-        cb >>= 8 - cbi;
+    // Flushing bit buffer to actual bit array
+    int size = 0;
+    unsigned char cb = 0;
+    int bitCount = 0;
+    for (int i = 0; i < bi; ++i) {
+        cb = (cb << 1) | (bitBuffer[i] & 1);
+        if (++bitCount == 8) {
+            result[size++] = cb;
+            cb = 0;
+            bitCount = 0;
+        }
+    }
+    if (bitCount) {
+        cb <<= (8 - bitCount);
         result[size++] = cb;
     }
 
@@ -449,9 +454,9 @@ int applyErrorCorrection(byte *encoding, int dataSize) {
     int pad = ENCODING_SIZE - ecwords - dataSize;
     for (int i = 0; i < pad; i++) {
         if (i & 1) {
-            encoding[dataSize + i] = 0x11;
+            encoding[dataSize + i] = 0b11101100;
         } else {
-            encoding[dataSize + i] = 0xEC;
+            encoding[dataSize + i] = 0b00010001;
         }
     }
 
@@ -459,7 +464,7 @@ int applyErrorCorrection(byte *encoding, int dataSize) {
     generateEC(encoding, dataSize, encoding + dataSize, ecwords, generator);
 
     return level;
-} 
+}
 
 byte **dupmat(byte **original) {
     byte **matrix = malloc(M_SIZE * sizeof(byte*));
@@ -644,6 +649,8 @@ int applyDataMasking(byte **matrix) {
         }
     }
 
+    chosen = 2;
+
     for (int y = 0; y < M_SIZE; y++) {
         for (int x = 0; x < M_SIZE; x++) {
             matrix[y][x] = masks[chosen][y][x];
@@ -651,7 +658,7 @@ int applyDataMasking(byte **matrix) {
     }
 
     for (int i = 0; i < 8; i++) {
-        free(masks[i]);
+        freeMatrix(masks[i], M_SIZE);
     }
 
     return chosen;
@@ -686,7 +693,7 @@ void writeFormating(byte **matrix, int ecLevel, int dataMask) {
 
     // Masking
     for (int i = 0; i < 15; i++) {
-        bitmap[i] ^= 21522 & (16384 >> i);
+        bitmap[i] ^= (21522 >> (14 - i)) & 1;
     }
 
     // Writing to matrix
@@ -694,7 +701,7 @@ void writeFormating(byte **matrix, int ecLevel, int dataMask) {
         for (int x = 0; x < M_SIZE; x++) {
             if (FORMATTING_MASK[y][x] == 0) continue;
 
-            matrix[y][x] = bitmap[FORMATTING_MASK[y][x] - 1];
+            matrix[y][x] = bitmap[15 - FORMATTING_MASK[y][x]];
         }
     }
 }
@@ -712,7 +719,7 @@ QRCode *generateQR(char* data, int n) {
 
     // Max data size up to L
     int wordsWritten = encodeData(encoding, DATA_SIZE_L, data, n);
-    if (wordsWritten > 0) { 
+    if (wordsWritten > 0) {
         int ecLevel = applyErrorCorrection(encoding, wordsWritten);
 
         packData(matrix, encoding, ENCODING_SIZE);
