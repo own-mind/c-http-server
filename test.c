@@ -161,19 +161,19 @@ void testQrModeSelection() {
     assertInt(7, result.length);
 
     printf("Test #%d: Full alphanum (no numbers)\n", ++testCount);
-    data = "abcdfe$+-";
+    data = "ABCDFE$+-";
     result = selectMode(data, strlen(data));
     assertInt(ALPHANUMERIC, result.mode);
     assertInt(strlen(data), result.length);
 
     printf("Test #%d: Full alphanum (inner numbers)\n", ++testCount);
-    data = "abcd123fe$+-";
+    data = "ABCD123FE$+-";
     result = selectMode(data, strlen(data));
     assertInt(ALPHANUMERIC, result.mode);
     assertInt(strlen(data), result.length);
 
     printf("Test #%d: Start alphanum (before numbers)\n", ++testCount);
-    data = "abcd1234567890fe$+-";   // Here it is better to encode 1234567890 as NUMERIC
+    data = "ABCD1234567890FE$+-";   // Here it is better to encode 1234567890 as NUMERIC
     result = selectMode(data, strlen(data));
     assertInt(ALPHANUMERIC, result.mode);
     assertInt(4, result.length);
@@ -185,13 +185,13 @@ void testQrModeSelection() {
     assertInt(5, result.length);
 
     printf("Test #%d: Alpha before bytes\n", ++testCount);
-    data = "abc\ncdcddd";
+    data = "ABC\ncdcddd";
     result = selectMode(data, strlen(data));
     assertInt(ALPHANUMERIC, result.mode);
     assertInt(3, result.length);
 
     printf("Test #%d: Alpha after bytes\n", ++testCount);
-    data = "\ncdcdddd";
+    data = "\nCDCDDDD";
     result = selectMode(data, strlen(data));
     assertInt(BYTE, result.mode);
     assertInt(1, result.length);
@@ -271,6 +271,12 @@ void testEncodings() {
     data = "01234567";
     encodeNumeric(bitBuffer, &bi, data, strlen(data));
     assertBitBuffer(bitBuffer, bi, "0000001100 0101011001 1000011");
+
+    printf("Test #%d: Alphanumeric string 'AC-42'\n", ++testCount);
+    bi = 0;
+    data = "AC-42";
+    encodeAlphanumeric(bitBuffer, &bi, data, strlen(data));
+    assertBitBuffer(bitBuffer, bi, "00111001110 11100111001 000010");
 
     free(bitBuffer);
 }

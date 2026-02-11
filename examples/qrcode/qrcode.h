@@ -32,6 +32,7 @@ typedef struct {
 
 ModeGroup selectMode(char *data, int n);
 int encodeNumeric(byte *bitBuffer, int *bi, char *data, int n);
+int encodeAlphanumeric(byte *bitBuffer, int *bi, char *data, int n);
 int generateEC(byte *message, int mn, byte* writeTo, int ecwords, alpha *generator);
 QRCode *generateQR(char* data, int n);
 void packData(byte **matrix, byte *data, int n);

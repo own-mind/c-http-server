@@ -30,6 +30,15 @@ alpha EC_GEN_H[29] = { 0,168,223,200,104,224,234,108,180,110,190,
 byte DEC_TO_ALPH[256];
 byte ALPH_TO_DEC[256];
 
+char ALPHANUMS[45] = {
+    '0','1','2','3','4','5','6','7','8','9',
+    'A','B','C','D','E','F','G','H','I','J',
+    'K','L','M','N','O','P','Q','R','S','T',
+    'U','V','W','X','Y','Z',' ','$','%','*',
+    '+','-','.','/',':'
+};
+int CHAR_TO_ALPHANUM[256];
+
 __attribute__((constructor))
 void generateUtilArrays() {
     unsigned int num = 1;
@@ -41,9 +50,14 @@ void generateUtilArrays() {
 
         DEC_TO_ALPH[num] = (byte) i;
         ALPH_TO_DEC[i] = num;
-    }
 
+        CHAR_TO_ALPHANUM[i] = -1;   // Fail if encountered
+    }
     ALPH_TO_DEC[0] = 1;
+
+    for (int i = 0; i < 45; i++) {
+        CHAR_TO_ALPHANUM[(int)ALPHANUMS[i]] = i;
+    }
 }
 
 QRCode *toQRImage(byte **matrix, int w, int h);
@@ -160,7 +174,7 @@ void packData(byte **matrix, byte *data, int n) {
     for (int i = 0; i < n; i++) {
         byte word = data[i];
 
-        for (int j = 7; j >= 0; j--) {   //TODO Maybe has to be reversed bit order
+        for (int j = 7; j >= 0; j--) {
             int bit = (word >> j) & 1u;
 
             if (bit) matrix[py][px] = 1u;
@@ -245,9 +259,7 @@ ModeGroup selectMode(char *data, int n) {
             if (current == NUMERIC || current == ALPHANUMERIC) startAlpha++;
             numeric++;
             alpha++;
-        } else if ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c==' '||c=='$'
-            ||c=='%'||c=='*'||c=='+'||c=='-'||c=='.'||c=='/'||c==':'
-        ){ 
+        } else if (CHAR_TO_ALPHANUM[(int)c] >= 0){
             if (current == ALPHANUMERIC || current == NUMERIC) startAlpha++;
             alpha++;
             numeric = 0;
@@ -262,18 +274,16 @@ ModeGroup selectMode(char *data, int n) {
         if (current != NUMERIC && numeric > 0) {
             currentSize = modeBitSize(current, numeric).data;  // The amount of bits current encoding will take up
             nextSize = modeBitSize(NUMERIC, numeric).total;  // Headers + data in bits
-            // TODO ideally it should also account for cost of declaration of the next header, after NUMERIC, if any
 
             if (nextSize < currentSize) {
                 length -= numeric;
                 break;
-    }
+            }
         }
 
         if (current != ALPHANUMERIC && alpha > 0) {
             currentSize = modeBitSize(current, alpha).data;  // The amount of bits current encoding will take up
             nextSize = modeBitSize(ALPHANUMERIC, alpha).total;  // Headers + data in bits
-            // TODO ideally it should also account for cost of declaration of the next header, after ALPHANUMERIC, if any
 
             if (nextSize < currentSize) {
                 length -= alpha;
@@ -341,6 +351,41 @@ int encodeNumeric(byte *bitBuffer, int *bi, char *data, int n) {
     return 1;
 }
 
+int encodeAlphanumeric(byte *bitBuffer, int *bi, char *data, int n) {
+    for (int i = 0; i < n - 1; i += 2) {
+        if (!validateSize(*bi + 11)) return 0;
+
+        int val = CHAR_TO_ALPHANUM[(int)data[i]] * 45 + CHAR_TO_ALPHANUM[(int)data[i + 1]];
+        for (int j = 10; j >= 0; j--) {
+            bitBuffer[(*bi)++] = (val >> j) & 1;
+        }
+    }
+
+    if (n & 1) {
+        if (!validateSize(*bi + 6)) return 0;
+
+        int val = CHAR_TO_ALPHANUM[(int)data[n - 1]];
+        for (int j = 5; j >= 0; j--) {
+            bitBuffer[(*bi)++] = (val >> j) & 1;
+        }
+    }
+
+    return 1;
+}
+
+int encodeByte(byte *bitBuffer, int *bi, char *data, int n) {
+    for (int i = 0; i < n; i++) {
+        if(!validateSize(*bi + 8)) return 0;
+
+        char c = data[i];
+        for (int j = 7; j >= 0; j--) {
+            bitBuffer[(*bi)++] = (c >> j) & 1;
+        }
+    }
+
+    return 1;
+}
+
 int encodeData(byte *result, int rn, char *data, int n) {
     byte *bitBuffer = calloc(rn * 8, sizeof(byte));   // byte per bit array
     int bi = 0;     // Bit buffer index
@@ -352,20 +397,32 @@ int encodeData(byte *result, int rn, char *data, int n) {
             bitBuffer[bi++] = (modeGroup.mode >> b) & 1;
         }
 
-        int success;
+        int success; 
         if (modeGroup.mode == NUMERIC) {
             for (int b = 9; b >= 0; --b) {
                 bitBuffer[bi++] = (modeGroup.length >> b) & 1;
             }
 
             success = encodeNumeric(bitBuffer, &bi, data + idx, modeGroup.length);
+        } else if (modeGroup.mode == ALPHANUMERIC) {
+            for (int b = 8; b >= 0; --b) {
+                bitBuffer[bi++] = (modeGroup.length >> b) & 1;
+            }
+
+            success = encodeAlphanumeric(bitBuffer, &bi, data + idx, modeGroup.length);
+        } else if (modeGroup.mode == BYTE) {
+            for (int b = 7; b >= 0; --b) {
+                bitBuffer[bi++] = (modeGroup.length >> b) & 1;
+            }
+
+            success = encodeByte(bitBuffer, &bi, data + idx, modeGroup.length);
         } else {
             return -1;
         }
 
         if (!success) {   // Typically means encoding function got too much data
             free(bitBuffer);
-            return -1; 
+            return -1;
         }
 
         idx += modeGroup.length;
